@@ -2,7 +2,6 @@
 
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
 import sys
 
 import torch
@@ -14,9 +13,8 @@ from util.visualizer import save_images
 from data import CreateDataLoader
 import logging
 
-sys.path.append("D:/dzhao/dehazing_360/SSDH-HDR")
-
 if __name__ == '__main__':
+	logging.basicConfig(level=logging.INFO)
 	opt = TestOptions().parse()
 	opt.serial_batches = True  # no shuffle
 	opt.no_flip = True  # no flip
@@ -37,7 +35,7 @@ if __name__ == '__main__':
 		if i == 0:
 			for item in data.items():
 				if isinstance(item[1], torch.Tensor):
-					logging.info(item[0], item[1].size())
+					logging.info('%s %s', item[0], item[1].size())
 		
 		model.set_input(data)
 		model.test(opt)

@@ -7,5 +7,10 @@ torch
 torchvision
 
 opencv-python
+
+# DRL_UMDSR: html training previews (util/html.py), optional live loss plots (util/visualizer.py)
+dominate
+visdom
+
 jupyter
 tornado<6.5.9

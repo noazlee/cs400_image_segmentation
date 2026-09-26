@@ -2,18 +2,17 @@ import subprocess
 import sys
 import time
 import os
-sys.path.append("D:/dzhao/dehazing_360/SSDH-HDR")
 from options.train_options import TrainOptions
 from data import CreateDataLoader
 from models import create_model
 from util.visualizer import Visualizer
 import torch
 import logging
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
 
 #torch.cuda.set_device(1)
 
 if __name__ == '__main__':
+	logging.basicConfig(level=logging.INFO)
 	opt = TrainOptions().parse()
 	data_loader = CreateDataLoader(opt)
 	dataset = data_loader.load_data()
@@ -55,16 +54,6 @@ if __name__ == '__main__':
 				if opt.display_id > 0:
 					visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, opt, losses)
 
-			if total_steps % 200 == 0:
-				print('begin time sleep')
-				time.sleep(30)
-				print('stop time sleep')
-
-			if total_steps % 1000 == 0:
-				print('begin time sleep')
-				time.sleep(20)
-				print('stop time sleep')
-			
 			if total_steps % opt.save_latest_freq == 0:
 				logging.info('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
 				model.save_networks('latest')
@@ -78,6 +67,6 @@ if __name__ == '__main__':
 		logging.info('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.max_epoch, time.time() - epoch_start_time))
 		model.update_learning_rate()
 
-		print('begin long time sleep')
-		time.sleep(360)
-		print('stop long time sleep')
+		if opt.cooldown > 0:
+			print('cooling down for %d sec' % opt.cooldown)
+			time.sleep(opt.cooldown)

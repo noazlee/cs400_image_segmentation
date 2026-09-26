@@ -40,4 +40,5 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--lr_policy', type=str, default='step', help='learning rate policy: lambda|step|plateau')
 		self.parser.add_argument('--lr_decay_iters', type=int, default=10, help='multiply by a gamma every lr_decay_iters iterations')
 		self.parser.add_argument('--patch_size', type=int, default=35, help='the size of image patch used in Dark Channel')
+		self.parser.add_argument('--cooldown', type=int, default=0, help='seconds to sleep after each epoch (upstream used 360)')
 		self.isTrain = True

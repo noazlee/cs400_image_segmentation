@@ -9,8 +9,8 @@
     }
   },
 
-  // More shared memory for PyTorch DataLoader workers
-  "runArgs": ["--ipc=host"],
+  // expose host NVIDIA GPUs
+  "runArgs": ["--ipc=host", "--gpus", "all"],
   "remoteUser": "nlee",
 
   "customizations": {

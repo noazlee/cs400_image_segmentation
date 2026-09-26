@@ -5,7 +5,6 @@ import torch.nn as nn
 from torch.nn import init
 from torch.optim import lr_scheduler
 from epdn import epdn_networks
-from invo.involution import Involution2d
 import torch.nn.functional as F
 from models.actnorm import ActNorm2d
 from models.sparse_switchable_norm import SSN2d
