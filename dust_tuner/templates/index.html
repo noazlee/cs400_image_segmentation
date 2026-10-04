@@ -14,8 +14,17 @@
 </head>
 
 <body>
+  <script>
+    let _previewTimer;
+    function updatePreview(form) {
+      clearTimeout(_previewTimer);
+      _previewTimer = setTimeout(() => {
+        document.getElementById('preview').src = '/preview?' + new URLSearchParams(new FormData(form));
+      }, 2);
+    }
+  </script>
   <form action="/submit" method="post"
-        onchange="document.getElementById('preview').src = '/preview?' + new URLSearchParams(new FormData(this))">
+        oninput="updatePreview(this)">
     <input type="hidden" name="clear" value="{{ clear }}">
     <input type="hidden" name="dusty" value="{{ dusty }}">
     <input type="hidden" name="seed" value="{{ seed }}">
