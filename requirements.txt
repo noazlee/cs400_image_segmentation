@@ -1,4 +1,7 @@
 numpy
+pillow
+flask
+pysqlite3-binary; platform_system == "Linux"
 pandas
 scipy
 scikit-learn

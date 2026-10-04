@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dust Tuner</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .images { display: flex; gap: 20px; }
+    .images figure { margin: 0; }
+    .images img { width: 448px; height: 400px; object-fit: contain; background: #eee; }
+    .sliders { display: grid; grid-template-columns: 180px 300px 60px; gap: 4px 10px; margin: 20px 0; align-items: center; }
+    button { padding: 6px 14px; margin-right: 8px; }
+  </style>
+</head>
+
+<body>
+  <form action="/submit" method="post"
+        onchange="document.getElementById('preview').src = '/preview?' + new URLSearchParams(new FormData(this))">
+    <input type="hidden" name="clear" value="{{ clear }}">
+    <input type="hidden" name="dusty" value="{{ dusty }}">
+    <input type="hidden" name="seed" value="{{ seed }}">
+
+    <label>Username: <input name="username" value="{{ username }}" required></label>
+
+    <div class="images">
+      <figure>
+        <img src="/examples/clear/{{ clear }}">
+        <figcaption>Original clear image ({{ clear }})</figcaption>
+      </figure>
+      <figure>
+        <img id="preview" src="/preview?clear={{ clear }}&seed={{ seed }}">
+        <figcaption>Dustified clear image ({{ clear }})</figcaption>
+      </figure>
+      <figure>
+        <img src="/examples/dusty/{{ dusty }}">
+        <figcaption>Real dusty image ({{ dusty }})</figcaption>
+      </figure>
+    </div>
+
+    <div class="sliders">
+      <label for="intensity">intensity</label>
+      <input type="range" id="intensity" name="intensity" min="0.0" max="1.0" step="0.01" value="0.92" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.92</span>
+
+      <label for="red_tint">red_tint</label>
+      <input type="range" id="red_tint" name="red_tint" min="0.0" max="1.0" step="0.01" value="0.84" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.84</span>
+
+      <label for="green_tint">green_tint</label>
+      <input type="range" id="green_tint" name="green_tint" min="0.0" max="1.0" step="0.01" value="0.65" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.65</span>
+
+      <label for="blue_tint">blue_tint</label>
+      <input type="range" id="blue_tint" name="blue_tint" min="0.0" max="1.0" step="0.01" value="0.42" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.42</span>
+
+      <label for="gradient_factor">gradient_factor</label>
+      <input type="range" id="gradient_factor" name="gradient_factor" min="0.2" max="5.0" step="0.05" value="1.2" oninput="this.nextElementSibling.textContent = this.value">
+      <span>1.2</span>
+
+      <label for="baseline_fog">baseline_fog</label>
+      <input type="range" id="baseline_fog" name="baseline_fog" min="0.0" max="1.0" step="0.01" value="0.34" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.34</span>
+
+      <label for="variable_fog">variable_fog</label>
+      <input type="range" id="variable_fog" name="variable_fog" min="0.0" max="1.0" step="0.01" value="0.63" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.63</span>
+
+      <label for="maximum_fog">maximum_fog</label>
+      <input type="range" id="maximum_fog" name="maximum_fog" min="0.0" max="1.0" step="0.01" value="0.85" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.85</span>
+
+      <label for="fine_distr">fine_distr</label>
+      <input type="range" id="fine_distr" name="fine_distr" min="0.0" max="0.1" step="0.001" value="0.025" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.025</span>
+
+      <label for="coarse_distr">coarse_distr</label>
+      <input type="range" id="coarse_distr" name="coarse_distr" min="0.0" max="0.1" step="0.001" value="0.015" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.015</span>
+
+      <label for="noise_scaling">noise_scaling</label>
+      <input type="range" id="noise_scaling" name="noise_scaling" min="0.0" max="2.0" step="0.05" value="0.8" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.8</span>
+
+      <label for="blur_radius">blur_radius</label>
+      <input type="range" id="blur_radius" name="blur_radius" min="0.0" max="40.0" step="0.5" value="18.0" oninput="this.nextElementSibling.textContent = this.value">
+      <span>18.0</span>
+
+      <label for="final_contrast_factor">final_contrast_factor</label>
+      <input type="range" id="final_contrast_factor" name="final_contrast_factor" min="0.0" max="0.8" step="0.01" value="0.25" oninput="this.nextElementSibling.textContent = this.value">
+      <span>0.25</span>
+    </div>
+
+    <button type="submit">Submit</button>
+    <a href="/?username={{ username }}">New pair</a>
+  </form>
+</body>
+</html>

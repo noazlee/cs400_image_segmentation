@@ -224,3 +224,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dust tuner submissions
+dust_tuner/submissions.db
