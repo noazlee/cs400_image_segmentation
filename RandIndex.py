@@ -1,5 +1,5 @@
 #A link to a broader description of the Rand Index, as well as a simple example,
-#can be found at this link: 
+#can be found here: https://drive.google.com/file/d/1b9JChl_qUsT7oYYqDz2drA94MUckRBTs/view?usp=drive_link
 
 from PIL import Image
 import matplotlib.pyplot as plt
