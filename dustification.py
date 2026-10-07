@@ -1,5 +1,6 @@
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
+import os
 
 """
 Parameters:
@@ -130,12 +131,25 @@ def apply_martian_dust_storm(image_path, params=None, seed=None):
 
 # --- Usage Example ---
 if __name__ == "__main__":
-    input_filename = "clear_mars_surface.png"
-    output_filename = "dusty_mars_surface.jpg"
+    # test!!
+    folder = "../dataset/test_images"
+    
+    # folder = "../dataset/ai4mars-dataset-merged-0.6/msl/mcam/images"
+    output_folder = "../dataset/dusted"
 
-    print("Applying smoothed dust storm with improved background clarity...")
+    for file in os.listdir(folder):
+        if file.lower().endswith((".jpg", ".jpeg", ".png")):
+            # Accesses the correct image in the directory
+            filepath = os.path.join(folder, file)
 
-    result = apply_martian_dust_storm(input_filename)
-    result.save(output_filename)
+            # Applies the dust storm, saves result as result
+            result = apply_martian_dust_storm(filepath)
 
-    print(f"Done! Saved output to '{output_filename}'")
+            # Splits the name and the extension of the file name (each image)
+            name, extension = os.path.splitext(file)
+
+            # Creates the new file name, adding _dusted to the end before adding the extension
+            new_filename = name + "_dusted" + extension
+
+            # Saves the result file with the correct name to the correct folder
+            result.save(os.path.join(output_folder, new_filename))
