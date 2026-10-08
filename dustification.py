@@ -1,6 +1,65 @@
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
-import os
+import os, random
+
+"""
+Parameters:
+    i: integer [0,3] to add the correct dustification level to the image
+
+Returns:
+    Dictionary of randomly assigned variable weights dependent on input dustification level.
+    Pass in the returned value to params in apply_martian_dust_storm
+"""
+def get_params(i):
+    levels = {}
+    
+    # Depending on the dustification level, set random in given range
+    # Baseline
+    if i == 0:
+        levels = {
+            "intensity": random.uniform(0.453, 0.92),
+            "baseline_fog": random.uniform(0.154, 0.448),
+            "variable_fog": random.uniform(0.501, 0.863),
+            "maximum_fog": random.uniform(0.781, 0.96),
+        }
+    # Dust Level 1
+    elif i == 1:
+        levels = {
+            "intensity": random.uniform(0.453, 0.608667),
+            "baseline_fog": random.uniform(0.154, 0.252),
+            "variable_fog": random.uniform(0.501, 0.621667),
+            "maximum_fog": random.uniform(0.781, 0.840667),
+        }
+    # Dust Level 2
+    elif i == 2:
+        levels = {
+            "intensity": random.uniform(0.608667, 0.764333),
+            "baseline_fog": random.uniform(0.252, 0.350),
+            "variable_fog": random.uniform(0.621667, 0.742333),
+            "maximum_fog": random.uniform(0.840667, 0.900333),
+        }
+    # Dust Level 3
+    elif i == 3:
+        levels = {
+            "intensity": random.uniform(0.764333, 0.92),
+            "baseline_fog": random.uniform(0.350, 0.448),
+            "variable_fog": random.uniform(0.742333, 0.863),
+            "maximum_fog": random.uniform(0.900333, 0.96),
+        }
+
+    # Merge level-specific keys with other baseline ranges; return dictionary
+    return {
+        **levels,
+        "red_tint": random.uniform(0.75, 0.84),
+        "green_tint": random.uniform(0.641, 0.669),
+        "blue_tint": random.uniform(0.42, 0.429),
+        "gradient_factor": random.uniform(0.91, 2.55),
+        "fine_distr": random.uniform(0.025, 0.028),
+        "coarse_distr": random.uniform(0.015, 0.019),
+        "noise_scaling": random.uniform(0.61, 0.95),
+        "blur_radius": random.uniform(18.0, 22.95),
+        "final_contrast_factor": random.uniform(0.25, 0.33),
+    }
 
 """
 Parameters:
@@ -19,7 +78,7 @@ Function Workflow (described by Gemini):
     5. Procedural Grain ⟶ Add multi-scale fine/coarse Gaussian noise
     6. Distance Blur ⟶ Composite Gaussian blur via fog alpha mask
     7. Restored Contrast ⟶ Reduce dynamic range by 25% via intensity
-"""
+
 DEFAULT_PARAMS = {
     "intensity": 0.92,          # Storm density (0.0 = clear, 1.0 = severe storm)
 
@@ -46,24 +105,26 @@ DEFAULT_PARAMS = {
     # Block 7
     "final_contrast_factor": 0.25,  # Reduces and smooths final contrast by 25%
 }
-
-
-def apply_martian_dust_storm(image_path, params=None, seed=None):
-    # params overrides any of DEFAULT_PARAMS; seed makes the grain noise reproducible    
-    p = {**DEFAULT_PARAMS, **(params or {})}
-    intensity = p["intensity"]
-    red_tint, green_tint, blue_tint = p["red_tint"], p["green_tint"], p["blue_tint"]
-    gradient_factor = p["gradient_factor"]
-    baseline_fog = p["baseline_fog"]
-    variable_fog = p["variable_fog"]
-    maximum_fog = p["maximum_fog"]
-    fine_distr = p["fine_distr"]
-    coarse_distr = p["coarse_distr"]
-    noise_scaling = p["noise_scaling"]
-    blur_radius = p["blur_radius"]
-    final_contrast_factor = p["final_contrast_factor"]
+"""
+def apply_martian_dust_storm(image_path, params, seed=None):
     if seed is not None:
         np.random.seed(seed)
+        random.seed(seed)
+    
+    # Unpack Dictionary
+    red_tint = params['red_tint']
+    green_tint = params['green_tint']
+    blue_tint = params['blue_tint']
+    gradient_factor = params['gradient_factor']
+    baseline_fog = params['baseline_fog']
+    intensity = params['intensity']
+    variable_fog = params['variable_fog']
+    maximum_fog = params['maximum_fog']
+    fine_distr = params['fine_distr']
+    coarse_distr = params['coarse_distr']
+    noise_scaling = params['noise_scaling']
+    blur_radius = params['blur_radius']
+    final_contrast_factor = params['final_contrast_factor']
 
     # 1. Load Image and convert to float array
     img = Image.open(image_path).convert("RGB")
@@ -132,24 +193,31 @@ def apply_martian_dust_storm(image_path, params=None, seed=None):
 # --- Usage Example ---
 if __name__ == "__main__":
     # test!!
-    folder = "../dataset/test_images"
+    # folder = "../dataset/test_images"
     
-    # folder = "../dataset/ai4mars-dataset-merged-0.6/msl/mcam/images"
-    output_folder = "../dataset/dusted"
+    folder = "../dataset/ai4mars-dataset-merged-0.6/msl/mcam/images"
+    output_folder = ""
 
-    for file in os.listdir(folder):
-        if file.lower().endswith((".jpg", ".jpeg", ".png")):
-            # Accesses the correct image in the directory
-            filepath = os.path.join(folder, file)
+    for i in range(4):
+        for file in os.listdir(folder):
+            if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                # Save to the correct directory
+                output_folder = f"../dataset/dusted/dusification_level_{i}"
+                
+                # Accesses the correct image in the directory
+                filepath = os.path.join(folder, file)
 
-            # Applies the dust storm, saves result as result
-            result = apply_martian_dust_storm(filepath)
+                # Get random params, based on dustification level
+                params = get_params(i)
 
-            # Splits the name and the extension of the file name (each image)
-            name, extension = os.path.splitext(file)
+                # Applies the dust storm, saves result as result
+                result = apply_martian_dust_storm(filepath, params)
 
-            # Creates the new file name, adding _dusted to the end before adding the extension
-            new_filename = name + "_dusted" + extension
+                # Splits the name and the extension of the file name (each image)
+                name, extension = os.path.splitext(file)
 
-            # Saves the result file with the correct name to the correct folder
-            result.save(os.path.join(output_folder, new_filename))
+                # Creates the new file name, adding _dusted to the end before adding the extension
+                new_filename = name + f"_dusted{i}" + extension
+
+                # Saves the result file with the correct name to the correct folder
+                result.save(os.path.join(output_folder, new_filename))
