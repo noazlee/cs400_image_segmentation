@@ -5,11 +5,13 @@ CS399/400 senior comps project on image segmentation algorithms
 ### dust_turner
 Small flask web app that uses dustification.py. It takes two random photos from the test sets of mars32k_drl and allows the user to adjust the sliders in dustification to an appropriate point. These results will be aggregated in a local sql database. This is a way for us to decide the ranges of acceptable values for randomly dustifying images.
 
+### U-Net
+This is our implementation of the U-Net image segmentation model in PyTorch. It is based on the architecture in (this)[https://link.springer.com/chapter/10.1007/978-3-319-24574-4_28] paper.
+
 ### ai4mars-dataset-merged-0.6
 This is the nasa ai4mars dataset:
 
 https://data.nasa.gov/dataset/ai4mars-a-dataset-for-terrain-aware-autonomous-driving-on-mars
-
 
 ### Mars_dataset
 This is the mars32k dataset used in the DRL_UMDSR paper:
