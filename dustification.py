@@ -202,7 +202,7 @@ if __name__ == "__main__":
         for file in os.listdir(folder):
             if file.lower().endswith((".jpg", ".jpeg", ".png")):
                 # Save to the correct directory
-                output_folder = f"../dataset/dusted/dusification_level_{i}"
+                output_folder = f"../dataset/dusted/dustification_level_{i}"
                 
                 # Accesses the correct image in the directory
                 filepath = os.path.join(folder, file)
