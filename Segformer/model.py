@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from encoder import MixVisionTransformer
-from decoder import SegFormerHead
+from decoder import MLPDecoder
 
 class SegFormer(nn.Module):
     def __init__(self, encoder, decoder, upsample=True):
@@ -37,7 +37,6 @@ class SegFormer(nn.Module):
 def build_segformer(num_classes=5, drop_path_rate=0.1,
                     dropout_ratio=0.1, upsample=True):
     encoder = MixVisionTransformer(
-        num_classes=num_classes,
         embed_dims=[32,64,160,256],
         depths=[2,2,2,2],
         drop_path_rate=drop_path_rate,
@@ -46,7 +45,7 @@ def build_segformer(num_classes=5, drop_path_rate=0.1,
         mlp_ratios=[4, 4, 4, 4],
     )
 
-    decoder = SegFormerHead(
+    decoder = MLPDecoder(
         in_channels=[32, 64, 160, 256],
         embed_dim=256,
         num_classes=num_classes,
