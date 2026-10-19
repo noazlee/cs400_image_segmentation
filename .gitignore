@@ -7,6 +7,10 @@ DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
 
+# Models
+pretrained/
+models/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
