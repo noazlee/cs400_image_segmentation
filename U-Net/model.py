@@ -11,13 +11,16 @@ class UNetEncoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channels, output_channels, 3, padding=1)
         self.conv2 = nn.Conv2d(output_channels, output_channels, 3, padding=1)
+        self.norm = nn.BatchNorm2d(output_channels)
         self.activation = nn.ReLU(inplace=True)
         self.downsample = nn.MaxPool2d(2, 2)
 
     def forward(self, x):
         x = self.conv1(x)
+        x = self.norm(x)
         x = self.activation(x)
         x = self.conv2(x)
+        x = self.norm(x)
         features = self.activation(x)
         downsampled = self.downsample(features)
         return features, downsampled
@@ -29,13 +32,16 @@ class UNetDecoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channels, output_channels, 3, padding=1)
         self.conv2 = nn.Conv2d(output_channels, output_channels, 3, padding=1)
+        self.norm = nn.BatchNorm2d(output_channels)
         self.activation = nn.ReLU(inplace=True)
         self.upsample = nn.ConvTranspose2d(output_channels, output_channels // 2, 2, 2)
 
     def forward(self, x):
         x = self.conv1(x)
+        x = self.norm(x)
         x = self.activation(x)
         x = self.conv2(x)
+        x = self.norm(x)
         x = self.activation(x)
         x = self.upsample(x)
         return x
@@ -55,8 +61,10 @@ class UNet(nn.Module):
         # Bottleneck
         self.bottleneck = nn.Sequential(
             nn.Conv2d(512, 1024, 3, padding=1),
+            nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
             nn.Conv2d(1024, 1024, 3, padding=1),
+            nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(1024, 512, 2, 2)
         )
@@ -67,8 +75,10 @@ class UNet(nn.Module):
         self.decoder3 = UNetDecoderBlock(256, 128)
         self.decoder4 = nn.Sequential(
             nn.Conv2d(128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(inplace=True)
         )
 
