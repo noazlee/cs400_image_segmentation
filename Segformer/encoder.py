@@ -19,12 +19,12 @@ class DWConv(nn.Module):
     """
     def __init__(self, dim=576):
         super(DWConv, self).__init__()
-        self.conv = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
+        self.dwconv = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
 
     def forward(self, x, H, W):
         B, N, C = x.shape
         x = x.transpose(1, 2).view(B, C, H, W)
-        x = self.conv(x)
+        x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
         return x
 
@@ -162,7 +162,7 @@ class Block(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = nn.LayerNorm(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.ffn = MixFFN(
+        self.mlp = MixFFN(
             in_features=dim, hidden_features=mlp_hidden_dim, drop=drop
         )
 
@@ -185,7 +185,7 @@ class Block(nn.Module):
 
     def forward(self, x, H, W):
         x = x + self.drop_path(self.attn(self.norm1(x), H, W))
-        x = x + self.drop_path(self.ffn(self.norm2(x), H, W))
+        x = x + self.drop_path(self.mlp(self.norm2(x), H, W))
 
         return x
 

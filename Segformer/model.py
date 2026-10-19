@@ -34,7 +34,7 @@ class SegFormer(nn.Module):
         return logits # [B, num_classes, H, W] after upsampling
 
 # params taken from paper's b0 lightweight settings
-def build_segformer(num_classes=5, drop_path_rate=0.1,
+def build_segformer(num_classes=4, drop_path_rate=0.1,
                     dropout_ratio=0.1, upsample=True):
     encoder = MixVisionTransformer(
         embed_dims=[32,64,160,256],
