@@ -10,7 +10,11 @@ Returns:
     Dictionary of randomly assigned variable weights dependent on input dustification level.
     Pass in the returned value to params in apply_martian_dust_storm
 """
-def get_params(i):
+def get_params(i, seed):
+    if seed is not None:
+            np.random.seed(seed)
+            random.seed(seed)
+    
     levels = {}
     
     # Depending on the dustification level, set random in given range
@@ -106,7 +110,7 @@ DEFAULT_PARAMS = {
     "final_contrast_factor": 0.25,  # Reduces and smooths final contrast by 25%
 }
 """
-def apply_martian_dust_storm(image_path, params, seed=None):
+def apply_martian_dust_storm(image_path, params, seed):
     if seed is not None:
         np.random.seed(seed)
         random.seed(seed)
@@ -132,7 +136,9 @@ def apply_martian_dust_storm(image_path, params, seed=None):
     img_np = np.array(img, dtype=np.float32) / 255.0        # Scales image down to a normalized floating point array with values in range [0.0, 1.0]
 
     # 2. Define Sandy Atmospheric Tone (Warm Ochre-Beige Tint)
-    dust_color = np.array([red_tint, green_tint, blue_tint])
+    # dust_color = np.array([red_tint, green_tint, blue_tint])
+    # CHANGED TO GRAYSCALE!!
+    dust_color = np.array([(0.2126*red_tint+0.7152*green_tint+0.0722*blue_tint), (0.2126*red_tint+0.7152*green_tint+0.0722*blue_tint), (0.2126*red_tint+0.7152*green_tint+0.0722*blue_tint)])
 
     # 3. Distance/Depth Mask
     y_coords = np.linspace(1.0, 0.0, height)[:, np.newaxis]     # Creates a 1 dimensional column vector with evenly spaced values, with the number of entries as the height of the image
@@ -191,16 +197,23 @@ def apply_martian_dust_storm(image_path, params, seed=None):
 
 
 # --- Usage Example ---
+# Run from cs400_image_segmentation directory
 if __name__ == "__main__":
-    # test!!
+    # Test select test images folder
     # folder = "../dataset/test_images"
+    # output_folder = "../dataset/test_images/test_output"
     
-    folder = "../dataset/ai4mars-dataset-merged-0.6/msl/mcam/images"
+    # Treat data images
+    folder = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/images/edr"
     output_folder = ""
+    
+    # Set the seed for both randoms in functions
+    seed = None
 
     for i in range(4):
         for file in os.listdir(folder):
             if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                
                 # Save to the correct directory
                 output_folder = f"../dataset/dusted/dustification_level_{i}"
                 
@@ -208,10 +221,10 @@ if __name__ == "__main__":
                 filepath = os.path.join(folder, file)
 
                 # Get random params, based on dustification level
-                params = get_params(i)
+                params = get_params(i, seed)
 
                 # Applies the dust storm, saves result as result
-                result = apply_martian_dust_storm(filepath, params)
+                result = apply_martian_dust_storm(filepath, params, seed)
 
                 # Splits the name and the extension of the file name (each image)
                 name, extension = os.path.splitext(file)
