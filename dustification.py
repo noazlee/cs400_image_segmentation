@@ -196,7 +196,6 @@ def apply_martian_dust_storm(image_path, params, seed):
     return dusty_img
 
 
-# --- Usage Example ---
 # Run from cs400_image_segmentation directory
 if __name__ == "__main__":
     # Test select test images folder
