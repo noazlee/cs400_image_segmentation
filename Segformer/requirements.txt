@@ -2,3 +2,5 @@ torch
 numpy
 jupyter
 matplotlib
+Pillow
+wandb

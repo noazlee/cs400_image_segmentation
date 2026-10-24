@@ -58,5 +58,5 @@ if __name__ == "__main__":
     # check param sizes 
     model = build_segformer()
     out = model(torch.randn(2, 3, 512, 512))
-    print(out.shape) # expect [2, 5, 512, 512]
+    print(out.shape) # expect [2, 4, 512, 512]
     print(f"params: {sum(p.numel() for p in model.parameters()) / 1000000} M") # approx 3.7M for b0
