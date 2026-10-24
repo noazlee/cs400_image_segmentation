@@ -53,7 +53,7 @@ class UNet(nn.Module):
         super().__init__()
 
         # Encoder layers
-        self.encoder1 = UNetEncoderBlock(3, 64)
+        self.encoder1 = UNetEncoderBlock(1, 64)
         self.encoder2 = UNetEncoderBlock(64, 128)
         self.encoder3 = UNetEncoderBlock(128, 256)
         self.encoder4 = UNetEncoderBlock(256, 512)
