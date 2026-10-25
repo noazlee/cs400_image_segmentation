@@ -11,6 +11,7 @@ DRL_UMDSR/results/
 # Models
 pretrained/
 models/
+wandb/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

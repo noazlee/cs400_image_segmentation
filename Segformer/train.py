@@ -116,7 +116,7 @@ model = build_segformer(num_classes=NUM_CLASSES)
 # Use pretrained model
 pretrained_path = "pretrained/segformer_b0_ade.pth"
 state_dict = torch.load(pretrained_path, map_location="cpu")
-missing, unexpected = model.load_state_dict(state_dict, strict=False)  # strict=False: linear_pred is new because new classes
+missing, unexpected = model.load_state_dict(state_dict, strict=False) # strict=False: linear_pred is new because new classes
 print(f"missing keys: {missing}") # should only be decoder.linear_pred.weight/bias
 print(f"unexpected keys: {unexpected}") # should be []
 
