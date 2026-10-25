@@ -83,7 +83,7 @@ class UNet(nn.Module):
         )
 
         # Final Convolutional Layer
-        self.output = nn.Conv2d(64, 4, 1)
+        self.output = nn.Conv2d(64, 5, 1)
 
     def forward(self, x):
 
@@ -104,3 +104,7 @@ class UNet(nn.Module):
 
         # The final output segmentation with 4 classes
         return self.output(x)
+
+if __name__ == "__main__":
+    model = UNet()
+    print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")

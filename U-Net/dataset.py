@@ -43,4 +43,10 @@ class AI4MarsDataset(Dataset):
         img = v2.functional.to_dtype(img, dtype=torch.float32, scale=True)
         label = torch.from_numpy(label).long()
 
+        # Shift class labels up one
+        label = torch.where(label == 255, label, label + 1)
+
+        # Map 255 to 0 class label
+        label = torch.where(label == 255, 0, label)
+
         return img, label
