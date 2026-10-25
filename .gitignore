@@ -2,8 +2,8 @@
 ai4mars-dataset-merged-0.6/
 Mars_dataset/
 ai4mars-dataset
-data/test
-data/train
+data/dusted
+data/non-dusted
 DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
