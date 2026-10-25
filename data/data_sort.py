@@ -1,9 +1,22 @@
+'''
+File Created by: Nora Wootten
+'''
+
+
+
 import random, os, shutil
+
+
+# BEFORE RUNNING!!!!
+# Create the following folder structure:
+
+# data/test/dusty_images,images,labels
+# data/train/images,labels
 
 # Run from the folder cs400_image_segmentation
 if __name__ == "__main__":
     # Set the seed to ensure reproducibility across ssh/devices
-    seed = None
+    seed = 102326
     random.seed(seed)
 
     # Establish folder paths

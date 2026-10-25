@@ -1,3 +1,10 @@
+'''
+File Created by Nora Wootten
+
+I wrote the get_params function, and the main function
+'''
+
+
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 import os, random
@@ -203,33 +210,35 @@ if __name__ == "__main__":
     # output_folder = "../dataset/test_images/test_output"
     
     # Treat data images
-    folder = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/images/edr"
+    folder_type = ["train", "test"]
     output_folder = ""
     
     # Set the seed for both randoms in functions
-    seed = None
+    seed = 102326
 
-    for i in range(4):
-        for file in os.listdir(folder):
-            if file.lower().endswith((".jpg", ".jpeg", ".png")):
-                
-                # Save to the correct directory
-                output_folder = f"../dataset/dusted/dustification_level_{i}"
-                
-                # Accesses the correct image in the directory
-                filepath = os.path.join(folder, file)
+    for j in range(2):
+        folder = f"data/non-dusted/{folder_type[j]}/images"
+        for i in range(4):
+            for file in os.listdir(folder):
+                if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                    
+                    # Save to the correct directory
+                    output_folder = f"data/dusted/{folder_type[j]}/dustification_level_{i}"
+                    
+                    # Accesses the correct image in the directory
+                    filepath = os.path.join(folder, file)
 
-                # Get random params, based on dustification level
-                params = get_params(i, seed)
+                    # Get random params, based on dustification level
+                    params = get_params(i, seed)
 
-                # Applies the dust storm, saves result as result
-                result = apply_martian_dust_storm(filepath, params, seed)
+                    # Applies the dust storm, saves result as result
+                    result = apply_martian_dust_storm(filepath, params, seed)
 
-                # Splits the name and the extension of the file name (each image)
-                name, extension = os.path.splitext(file)
+                    # Splits the name and the extension of the file name (each image)
+                    name, extension = os.path.splitext(file)
 
-                # Creates the new file name, adding _dusted to the end before adding the extension
-                new_filename = name + f"_dusted{i}" + extension
+                    # Creates the new file name, adding _dusted to the end before adding the extension
+                    new_filename = name + f"_dusted{i}" + extension
 
-                # Saves the result file with the correct name to the correct folder
-                result.save(os.path.join(output_folder, new_filename))
+                    # Saves the result file with the correct name to the correct folder
+                    result.save(os.path.join(output_folder, new_filename))
