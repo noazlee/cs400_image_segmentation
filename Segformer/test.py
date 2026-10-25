@@ -165,7 +165,7 @@ def test_data(dust_level, ckpt_path):
     return results
 
 
-ckpt = "models/best_seg_102326_5class.pth"
+ckpt = "models/best_seg_102426_5class.pth"
 dust = 0
 
 test_data(dust,ckpt)

@@ -1,15 +1,20 @@
 import random, os, shutil
 
+# BEFORE RUNNING!!!!
+# Create the following folder structure:
+
+# data/test/dusty_images,images,labels
+# data/train/images,labels
+
 # Run from the folder cs400_image_segmentation
 if __name__ == "__main__":
     # Set the seed to ensure reproducibility across ssh/devices
-    seed = None
+    seed = 102326
     random.seed(seed)
 
     # Establish folder paths
-    input_path_images = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/images/edr"
-    input_path_labels = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/labels/train"
-
+    input_path_images = "dataset/ai4mars-dataset-merged-0.6/msl/ncam/images/edr"
+    input_path_labels = "dataset/ai4mars-dataset-merged-0.6/msl/ncam/labels/train"
 
     # Loop through images, check if the corresponding image is in the labels directory
     # If it is, save 75% of matched image/label pairs to train, and the other 25% to test
