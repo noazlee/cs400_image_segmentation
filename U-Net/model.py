@@ -11,16 +11,17 @@ class UNetEncoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channels, output_channels, 3, padding=1)
         self.conv2 = nn.Conv2d(output_channels, output_channels, 3, padding=1)
-        self.norm = nn.BatchNorm2d(output_channels)
+        self.norm1 = nn.BatchNorm2d(output_channels)
+        self.norm2 = nn.BatchNorm2d(output_channels)
         self.activation = nn.ReLU(inplace=True)
         self.downsample = nn.MaxPool2d(2, 2)
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.norm(x)
+        x = self.norm1(x)
         x = self.activation(x)
         x = self.conv2(x)
-        x = self.norm(x)
+        x = self.norm2(x)
         features = self.activation(x)
         downsampled = self.downsample(features)
         return features, downsampled
@@ -32,16 +33,17 @@ class UNetDecoderBlock(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channels, output_channels, 3, padding=1)
         self.conv2 = nn.Conv2d(output_channels, output_channels, 3, padding=1)
-        self.norm = nn.BatchNorm2d(output_channels)
+        self.norm1 = nn.BatchNorm2d(output_channels)
+        self.norm2 = nn.BatchNorm2d(output_channels)
         self.activation = nn.ReLU(inplace=True)
         self.upsample = nn.ConvTranspose2d(output_channels, output_channels // 2, 2, 2)
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.norm(x)
+        x = self.norm1(x)
         x = self.activation(x)
         x = self.conv2(x)
-        x = self.norm(x)
+        x = self.norm2(x)
         x = self.activation(x)
         x = self.upsample(x)
         return x
@@ -102,7 +104,12 @@ class UNet(nn.Module):
         x = self.decoder3(torch.cat((skip2, x), dim=1))
         x = self.decoder4(torch.cat((skip1, x), dim=1))
 
-        # The final output segmentation with 4 classes
+        # The final output segmentation with 5 classes
+        # 0: NULL (no label)
+        # 1: soil
+        # 2: bedrock
+        # 3: sand
+        # 4: big rock
         return self.output(x)
 
 if __name__ == "__main__":
