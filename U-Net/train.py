@@ -52,20 +52,18 @@ val_transform = A.Compose([
 ])
 
 # Initialize the dataset
-ai4mars_train = AI4MarsDataset(
+ai4mars = AI4MarsDataset(
     "/home/kozakw/cs400/cs400_image_segmentation/data/non-train/images",
     "/home/kozakw/cs400/cs400_image_segmentation/data/train/labels",
-    transform=train_transform
+    train_transform=train_transform,
+    val_transform=val_transform
 )
 
-ai4mars_val = AI4MarsDataset(
-    "/home/kozakw/cs400/cs400_image_segmentation/data/non-train/images",
-    "/home/kozakw/cs400/cs400_image_segmentation/data/train/labels",
-    transform=val_transform
+train, val = random_split(
+    ai4mars,
+    [0.8, 0.2],
+    generator=torch.Generator().manual_seed(101926)
 )
-
-train, _ = random_split(ai4mars_train, [0.8, 0.2], seed=102526)
-_, val = random_split(ai4mars_val, [0.8, 0.2], seed=102526)
 train_dataloader = DataLoader(train, batch_size=4, shuffle=True)
 val_dataloader = DataLoader(val, batch_size=1, shuffle=True)
 
@@ -95,12 +93,22 @@ wandb.init(
 
 print("Initializing model, loss fn, optimizer...")
 model = UNet().to(device)
-loss_fn = nn.CrossEntropyLoss(ignore_index=255)
-opt = optim.Adam(model.parameters(), lr=lr)
+loss_fn = nn.CrossEntropyLoss(
+    ignore_index=255,
+    weight=torch.tensor([0.3, 1, 1, 1, 1]).to(device)
+)
+opt = optim.AdamW(
+    model.parameters(),
+    lr=lr
+)
 
 NUM_CLASSES = 5
-@torch.no_grad
+@torch.no_grad()
 def validate(model, dataloader):
+
+    # Disable nondeterministic tranformations
+    ai4mars.validation_enabled = True
+
     model.eval()
     total_loss = 0.0
     dice_scores = []
@@ -111,6 +119,9 @@ def validate(model, dataloader):
         image, label = data
         image = image.to(device)
         label = label.to(device).long()
+
+        if (label != 255).sum() == 0:
+            continue
 
         logits = model(image)
         total_loss += loss_fn(logits, label).item()
@@ -123,19 +134,25 @@ def validate(model, dataloader):
         for ground_truth, prediction in zip(label_np, pred_np):
             ground_truth = ground_truth.copy()
             ground_truth[ground_truth == 0] = 255
-            dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES-1))
+            dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
-            iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
+            iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES))
     
-        model.train()
-        
-        return {
-            "loss": total_loss / len(dataloader),
-            "dice": float(np.nanmean(dice_scores)),
-            "rand_index": float(np.nanmean(rand_scores)),
-            "iou": float(np.nanmean(iou_scores)),
-        }
+    model.train()
 
+    # Reenable nondeterministic tranformations for training
+    ai4mars.validation_enabled = False
+        
+    return {
+        "loss": total_loss / len(dataloader),
+        "dice": float(np.nanmean(dice_scores)),
+        "rand_index": float(np.nanmean(rand_scores)),
+        "iou": float(np.nanmean(iou_scores)),
+    }
+
+
+global_step = 1
+best_val = float("inf")
 
 print("Beginning training...")
 for epoch in range(num_epochs):
@@ -164,7 +181,7 @@ for epoch in range(num_epochs):
             print(
                 f"Batch {i + 1} loss: {running_loss / 10:.4f}"
             )
-            wandb.log({"train/loss": running_loss / log_every})
+            wandb.log({"train/loss": running_loss / log_every}, step=global_step)
             running_loss = 0.0
 
         if (i + 1) % val_every == 0:
@@ -175,8 +192,16 @@ for epoch in range(num_epochs):
                 f"\nval Rand Index {val_metrics['rand_index']:.4f}"
                 f"\nval IoU {val_metrics['iou']:.4f}"
             )
-            wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=i + 1)
+            wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=global_step)
+
+        global_step += 1
+
+        if val_metrics["loss"] < best_val:
+            best_val = val_metrics["loss"]
+            torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
+            print(f"Saved new best model to {save_dir}/best.pth")
+            wandb.run.summary["best_val_loss"] = best_val
 
 
 wandb.finish()
-torch.save(model.state_dict(), 'output/unet_weights.pth')
+torch.save(model.state_dict(), 'output/final.pth')
