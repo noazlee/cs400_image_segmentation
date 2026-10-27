@@ -53,8 +53,8 @@ val_transform = A.Compose([
 
 # Initialize the dataset
 ai4mars = AI4MarsDataset(
-    "/home/kozakw/cs400/cs400_image_segmentation/data/non-train/images",
-    "/home/kozakw/cs400/cs400_image_segmentation/data/train/labels",
+    "/home/kozakw/cs400/cs400_image_segmentation/data/non-dusted/train/images",
+    "/home/kozakw/cs400/cs400_image_segmentation/data/non-dusted/train/labels",
     train_transform=train_transform,
     val_transform=val_transform
 )
@@ -64,28 +64,28 @@ train, val = random_split(
     [0.8, 0.2],
     generator=torch.Generator().manual_seed(101926)
 )
-train_dataloader = DataLoader(train, batch_size=4, shuffle=True)
+train_dataloader = DataLoader(train, batch_size=6, shuffle=True)
 val_dataloader = DataLoader(val, batch_size=1, shuffle=True)
 
 # Training configuration
 num_epochs = 10
-lr = 0.001
+lr = 3e-4
 log_every = 10
-val_every = 50
+val_every = 1000
 save_dir = "output"
 os.makedirs(save_dir, exist_ok=True)
 
 # Weights & Biases configuration
 WANDB_PROJECT = "mars-model-training"
-WANDB_ENTITY = "noahzlee7-carleton-college-org"
+WANDB_ENTITY = "noahzlee7-carleton-college"
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[U-Net] Non-Dusty2: {lr}",
+    name=f"[U-Net] Non-Dusty3: {lr}",
     entity=WANDB_ENTITY,
     config={
         "num_epochs": num_epochs,
         "lr": lr,
-        "batch_size": 4,
+        "batch_size": 6,
         "img_size": 512,
         "seed": 101926,
     },
@@ -99,8 +99,10 @@ loss_fn = nn.CrossEntropyLoss(
 )
 opt = optim.AdamW(
     model.parameters(),
-    lr=lr
+    lr=lr,
+    weight_decay=1e-4
 )
+sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=num_epochs * len(train_dataloader))
 
 NUM_CLASSES = 5
 @torch.no_grad()
@@ -175,11 +177,12 @@ for epoch in range(num_epochs):
         loss = loss_fn(output, label)
         loss.backward()
         opt.step()
+        sched.step()
 
         running_loss += loss.item()
         if (i + 1) % log_every == 0:
             print(
-                f"Batch {i + 1} loss: {running_loss / 10:.4f}"
+                f"Batch {i + 1} loss: {running_loss / log_every:.4f}"
             )
             wandb.log({"train/loss": running_loss / log_every}, step=global_step)
             running_loss = 0.0
@@ -194,13 +197,13 @@ for epoch in range(num_epochs):
             )
             wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=global_step)
 
-        global_step += 1
+            if val_metrics["loss"] < best_val:
+                best_val = val_metrics["loss"]
+                torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
+                print(f"Saved new best model to {save_dir}/best.pth")
+                wandb.run.summary["best_val_loss"] = best_val
 
-        if val_metrics["loss"] < best_val:
-            best_val = val_metrics["loss"]
-            torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
-            print(f"Saved new best model to {save_dir}/best.pth")
-            wandb.run.summary["best_val_loss"] = best_val
+        global_step += 1
 
 
 wandb.finish()
