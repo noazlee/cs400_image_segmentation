@@ -4,7 +4,6 @@ File Created by Nora Wootten
 I wrote the get_params function, and the main function
 '''
 
-
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 import os, random

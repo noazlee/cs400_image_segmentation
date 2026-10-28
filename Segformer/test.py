@@ -5,10 +5,13 @@ Evaluation script that:
         1) Runs a trained model on the non-dusty test set.
         2) Return metrics
         3) Gets 10 random images from test set, visualize prediction - compare against label, original image, prediction - returns image
+    With DUSTIFICATION = True, does the above for the clean test set + every dust level, then
+    plots the metrics against dust level and a side-by-side figure of predictions at each level.
 """
 
 import os
 import sys
+import csv
 import random
 from pathlib import Path
 import numpy as np
@@ -27,10 +30,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 import metrics
 
-# test set for each dust level
+# clean test set (images + labels). Dusted test images live in DUSTED_DIR/dustification_level_{0-3}/
+# as <name>_dusted{N}.JPG and reuse the clean labels
 DATA_PATHS = {
-    0: REPO_ROOT / "data/test",
+    0: REPO_ROOT / "data/non-dusted/test",
 }
+DUSTED_DIR = REPO_ROOT / "data/dusted/test"
+
+# level 0 = clean, levels 1-4 = dustification_level_0-3 (dust 0 is the lightest dust)
+DUST_LABELS = ["clean", "dust 0", "dust 1", "dust 2", "dust 3"]
 
 NUM_CLASSES = 5 # soil, bedrock, sand, big rock, none (unlabelled 255 -> 4 in dataset.py)
 
@@ -46,11 +54,45 @@ CLASS_CMAP = ListedColormap(list(CLASS_COLORS.values()))
 CLASS_CMAP.set_bad(alpha=0)
 OVERLAY_ALPHA = 0.5 # opacity of label/prediction colors drawn over the image
 
+# metric -> (display name, line color, marker) for the dust-level comparison plot
+METRIC_STYLES = {
+    "dice": ("Dice", "#2a78d6", "o"),
+    "rand_index": ("Rand Index", "#eb6834", "s"),
+    "iou": ("IoU", "#1baf7a", "^"),
+    "pixel_acc": ("Pixel acc", "#eda100", "D"),
+}
+
 def load_model(ckpt_path, device):
     model = build_segformer(num_classes=NUM_CLASSES)
     state_dict = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(state_dict)
     return model.to(device).eval()
+
+def load_test_set(level):
+    # dusted images reuse the clean test labels; swap the image paths, labels stay paired by index
+    test_set = MarsDataset(DATA_PATHS[0], size=512, training=False)
+    if level > 0:
+        dust = level - 1
+        test_set.images = [DUSTED_DIR / f"dustification_level_{dust}" / f"{p.stem}_dusted{dust}.JPG"
+                           for p in test_set.images]
+    return test_set
+
+def make_loader(test_set):
+    return DataLoader(
+        test_set,
+        batch_size=8,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
+
+def print_results(results, name):
+    print(
+        f"[{name}] test Dice {results['dice']:.4f}"
+        f"\n[{name}] test Rand Index {results['rand_index']:.4f}"
+        f"\n[{name}] test IoU {results['iou']:.4f}"
+        f"\n[{name}] test pixel acc {results['pixel_acc']:.4f}"
+    )
 
 @torch.no_grad()
 def evaluate(model, loader, device):
@@ -87,30 +129,18 @@ def evaluate(model, loader, device):
     }
 
 ## Matplotlib code - assisted by Claude
-@torch.no_grad()
-def viz_predictions(model, test_set, device, out_path, n=10, seed=102326):
-    # Input: model, test_dataset
-    # Output: saves an n x 3 grid (original | label | prediction) to out_path
-    indices = random.Random(seed).sample(range(len(test_set)), n)
-    fig, axes = plt.subplots(n, 3, figsize=(9, 3 * n))
+def _to_display(img):
+    # undo the ImageNet normalization so the image displays normally
+    return np.clip(img.permute(1, 2, 0).numpy() * STD + MEAN, 0, 1)
 
-    for row, idx in enumerate(indices):
-        img, mask = test_set[idx]
-        pred = torch.argmax(model(img[None].to(device)), dim=1)[0].cpu().numpy()
+def _overlay(ax, img_np, seg):
+    # draw the image under the label/prediction so they're easier to compare
+    ax.imshow(img_np)
+    ax.imshow(seg, cmap=CLASS_CMAP, vmin=0, vmax=NUM_CLASSES - 1,
+              alpha=OVERLAY_ALPHA, interpolation="nearest")
 
-        # undo the ImageNet normalization so the image displays normally
-        img_np = np.clip(img.permute(1, 2, 0).numpy() * STD + MEAN, 0, 1)
-        mask_np = np.ma.masked_equal(mask.numpy(), 255)
-
-        axes[row, 0].imshow(img_np)
-        # draw the image under the label and prediction so they're easier to compare
-        for col, seg in [(1, mask_np), (2, pred)]:
-            axes[row, col].imshow(img_np)
-            axes[row, col].imshow(seg, cmap=CLASS_CMAP, vmin=0, vmax=NUM_CLASSES - 1,
-                                  alpha=OVERLAY_ALPHA, interpolation="nearest")
-        axes[row, 0].set_ylabel(test_set.images[idx].stem, fontsize=6)
-
-    for col, title in enumerate(["image", "label", "prediction"]):
+def _finish_grid(fig, axes, titles, out_path):
+    for col, title in enumerate(titles):
         axes[0, col].set_title(title)
 
     for ax in axes.flat:
@@ -125,20 +155,85 @@ def viz_predictions(model, test_set, device, out_path, n=10, seed=102326):
     fig.savefig(out_path, dpi=100)
     plt.close(fig)
 
+@torch.no_grad()
+def viz_predictions(model, test_set, device, out_path, n=10, seed=102326):
+    # Input: model, test_dataset
+    # Output: saves an n x 3 grid (original | label | prediction) to out_path
+    indices = random.Random(seed).sample(range(len(test_set)), n)
+    fig, axes = plt.subplots(n, 3, figsize=(9, 3 * n))
+
+    for row, idx in enumerate(indices):
+        img, mask = test_set[idx]
+        pred = torch.argmax(model(img[None].to(device)), dim=1)[0].cpu().numpy()
+
+        img_np = _to_display(img)
+        mask_np = np.ma.masked_equal(mask.numpy(), 255)
+
+        axes[row, 0].imshow(img_np)
+        _overlay(axes[row, 1], img_np, mask_np)
+        _overlay(axes[row, 2], img_np, pred)
+        axes[row, 0].set_ylabel(test_set.images[idx].stem, fontsize=6)
+
+    _finish_grid(fig, axes, ["image", "label", "prediction"], out_path)
+
+@torch.no_grad()
+def viz_predictions_dustifications(model, test_sets, device, out_path, n=10, seed=102326):
+    # Input: model, list of test datasets ordered clean -> most dust (same images, same order)
+    # Output: saves an n x (1 + levels) grid (label | prediction at each dust level) to out_path,
+    # each prediction drawn over the image the model actually saw at that level
+    indices = random.Random(seed).sample(range(len(test_sets[0])), n)
+    fig, axes = plt.subplots(n, 1 + len(test_sets), figsize=(3 * (1 + len(test_sets)), 3 * n))
+
+    for row, idx in enumerate(indices):
+        for level, test_set in enumerate(test_sets):
+            img, mask = test_set[idx]
+            pred = torch.argmax(model(img[None].to(device)), dim=1)[0].cpu().numpy()
+            img_np = _to_display(img)
+
+            if level == 0:
+                _overlay(axes[row, 0], img_np, np.ma.masked_equal(mask.numpy(), 255))
+            _overlay(axes[row, 1 + level], img_np, pred)
+        axes[row, 0].set_ylabel(test_sets[0].images[idx].stem, fontsize=6)
+
+    titles = ["label"] + [f"pred ({name})" for name in DUST_LABELS[:len(test_sets)]]
+    _finish_grid(fig, axes, titles, out_path)
+
+def plot_dust_metrics(all_results, out_path, title):
+    # Input: list of metric dicts ordered clean -> most dust
+    # Output: line plot of every metric against dust level, saved to out_path
+    x = np.arange(len(all_results))
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+
+    for key, (name, color, marker) in METRIC_STYLES.items():
+        values = [r[key] for r in all_results]
+        ax.plot(x, values, color=color, linewidth=2, marker=marker, markersize=7, label=name)
+        # label the end points only, so the change from clean -> most dust is readable
+        for i in (0, len(values) - 1):
+            ax.annotate(f"{values[i]:.3f}", (x[i], values[i]), textcoords="offset points",
+                        xytext=(0, 7), ha="center", fontsize=8, color="#333333")
+
+    ax.set_xticks(x, DUST_LABELS[:len(all_results)])
+    ax.set_xlabel("dust level")
+    ax.set_ylabel("score")
+    ax.set_ylim(0, 1.05)
+    ax.set_title(title)
+    ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.legend(frameon=False, loc="lower left")
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
 # test function, resuse for non-dusty, dusty, more dusty, etc.
 def test_data(dust_level, ckpt_path):
 
     # Load data
     print("Loading data")
-    data_path = DATA_PATHS[dust_level]
-    test_dataset = MarsDataset(data_path, size=512, training=False)
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=8,
-        shuffle=False,
-        num_workers=4,
-        pin_memory=True,
-    )
+    test_dataset = load_test_set(dust_level)
+    test_loader = make_loader(test_dataset)
 
     print(f"{len(test_dataset)} testing images")
 
@@ -150,12 +245,7 @@ def test_data(dust_level, ckpt_path):
     # Metrics
     print("Evaluating")
     results = evaluate(model, test_loader, device)
-    print(
-        f"test Dice {results['dice']:.4f}"
-        f"\ntest Rand Index {results['rand_index']:.4f}"
-        f"\ntest IoU {results['iou']:.4f}"
-        f"\ntest pixel acc {results['pixel_acc']:.4f}"
-    )
+    print_results(results, DUST_LABELS[dust_level])
 
     # Visualize
     os.makedirs("results", exist_ok=True)
@@ -164,8 +254,49 @@ def test_data(dust_level, ckpt_path):
 
     return results
 
+# runs test_data's steps on the clean set + every dust level, then compares them
+def test_data_dustifications(ckpt_path):
 
-ckpt = "models/best_seg_102426_5class.pth"
+    # Load model
+    print("Loading model")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = load_model(ckpt_path, device)
+    os.makedirs("results", exist_ok=True)
+
+    # run eval + the standard figure for every level
+    test_sets = []
+    all_results = []
+    for level, name in enumerate(DUST_LABELS):
+        print(f"Loading data ({name})")
+        test_dataset = load_test_set(level)
+        print(f"{len(test_dataset)} testing images")
+
+        print(f"Evaluating ({name})")
+        results = evaluate(model, make_loader(test_dataset), device)
+        print_results(results, name)
+        viz_predictions(model, test_dataset, device, f"results/test_dust{level}.png")
+
+        test_sets.append(test_dataset)
+        all_results.append(results)
+
+    # one row per level
+    with open("results/dust_metrics.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["level", *METRIC_STYLES])
+        writer.writeheader()
+        for name, results in zip(DUST_LABELS, all_results):
+            writer.writerow({"level": name, **results})
+
+    # Compare results
+    plot_dust_metrics(all_results, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
+    viz_predictions_dustifications(model, test_sets, device, "results/test_dust_compare.png")
+
+    return all_results
+
+ckpt = "models/best_seg_102526.pth"
 dust = 0
+DUSTIFICATION = True
 
-test_data(dust,ckpt)
+if not DUSTIFICATION:
+    test_data(dust,ckpt)
+else:
+    test_data_dustifications(ckpt)

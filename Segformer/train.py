@@ -18,7 +18,7 @@ import wandb
 from dataset import MarsDataset
 from model import build_segformer
 
-# metrics.py and data/ live at repo root
+#from ChatGPT: metrics.py lives at repo root
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 import metrics
@@ -29,6 +29,16 @@ def infinite(loader):
     while True: # restart the loader each time it runs out, so we count iterations not epochs
         yield from loader
 
+def recombine_quadrants(parts):
+    #Recombine four 512x512 quadrants into one 1024x1024 image/mask.
+    #Input: [B, 4, H, W]
+    #Output: [B, 2H, 2W]
+
+    top = torch.cat((parts[:, 0], parts[:, 1]), dim=-1)
+    bottom = torch.cat((parts[:, 2], parts[:, 3]), dim=-1)
+
+    return torch.cat((top, bottom), dim=-2)
+
 @torch.no_grad()
 def validate(model, loader):
     model.eval()
@@ -38,18 +48,48 @@ def validate(model, loader):
     iou_scores = []
 
     for images, masks in loader:
-        #From ChatGPT: Use non_blocking=True to speed up data transfer to GPU
+        #images: [B, 4, 3, 512, 512]
+        #masks:  [B, 4, 512, 512]
+
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True).long()
 
-        logits = model(images)
-        total_loss += compute_loss(logits, masks).item()
+        predicted_parts = []
 
-        preds = torch.argmax(logits, dim=1)
+        batch_loss = 0.0
+
+        #Run each 512x512 quadrant through SegFormer independently
+        for part in range(4):
+            #[B, 3, 512, 512]
+            image_part = images[:, part]
+            #[B, 512, 512]
+            mask_part = masks[:, part]
+            #[B, NUM_CLASSES, 512, 512]
+            logits = model(image_part)
+
+            batch_loss += compute_loss(logits, mask_part).item()
+
+            # [B, 512, 512]
+            prediction = torch.argmax(logits, dim=1)
+
+            predicted_parts.append(prediction)
+
+        # Average loss across the four quadrants
+        total_loss += batch_loss / 4
+
+        # [B, 4, 512, 512]
+        predicted_parts = torch.stack(predicted_parts, dim=1)
+
+        # Reconstruct original 1024x1024 prediction
+        # [B, 1024, 1024]
+        preds = recombine_quadrants(predicted_parts)
+
+        # Reconstruct original 1024x1024 ground-truth mask
+        # [B, 1024, 1024]
+        masks = recombine_quadrants(masks)
 
         preds_np = preds.cpu().numpy()
         masks_np = masks.cpu().numpy()
-
 
         for ground_truth, prediction in zip(masks_np, preds_np):
             # ignore "none" ground-truth pixels so metrics match the 4-class setup
@@ -70,7 +110,7 @@ def validate(model, loader):
 
 # Load data
 print("Loading data...")
-data_path = REPO_ROOT / "data/train"
+data_path = REPO_ROOT / "data/non-dusted/train"
 # We need two MarsDataset objects because training augmentation must be active
 # only for the training subset. random_split() normally makes two subsets that
 # share the same underlying dataset object, so in that case a single `training` 
@@ -82,7 +122,7 @@ train_split, val_split = random_split(base_dataset, [0.8, 0.2],
         generator=torch.Generator().manual_seed(101926))
 
 train_dataset = Subset(
-        MarsDataset(data_path, size=512,training=True, distortion=True),
+        MarsDataset(data_path, size=512,training=True, distortion=False),
         train_split.indices)
 
 val_dataset = Subset(
@@ -138,6 +178,8 @@ WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = None
 
 compute_loss = nn.CrossEntropyLoss(ignore_index=255) # ignore unlabelled 255
+# maybe scale 0 lower because so many 0s in data. TODO
+
 optimizer = torch.optim.AdamW(model.parameters(), lr = lr, weight_decay=0.01)
 
 # linear warmup, then poly decay (power 1 = straight line) down to lr * min_lr_ratio
@@ -151,7 +193,7 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[SEGFORMER] Non-Dusty3: {lr} (Normal)",
+    name=f"[SEGFORMER] Non-Dusty4: {lr} (Normal - No Distortion)",
     entity=WANDB_ENTITY,
     config={
         "num_iters": num_iters,

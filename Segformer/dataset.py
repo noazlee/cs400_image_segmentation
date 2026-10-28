@@ -22,7 +22,7 @@ STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 PAD_RGB = tuple(np.round(MEAN * 255).astype(np.uint8).tolist())
 
 class MarsDataset(Dataset):
-    def __init__(self, root, size=512, training=False, distortion=True, unknown_class=4):
+    def __init__(self, root, size=512, training=False, distortion=False, unknown_class=4):
         root = Path(root)
         self.size = size
         self.images = sorted((root / "images").glob("*.JPG"))
@@ -110,10 +110,50 @@ class MarsDataset(Dataset):
 
         if self.training:
             img, mask = self._training_transform(img, mask)
+            
         else:
-            # If we aren't training, just resize as before.
-            img = img.resize((self.size, self.size), Image.Resampling.BILINEAR)
-            mask = mask.resize((self.size, self.size),Image.Resampling.NEAREST)
+            #Validation images are 1024x1024. Split into four non-overlapping 512x512 quadrants.
+
+            width, height = img.size
+
+            expected_size = 2 * self.size
+
+            crop_boxes = [
+                (0, 0, self.size, self.size),                        #top-left
+                (self.size, 0, 2 * self.size, self.size),            #top-right
+                (0, self.size, self.size, 2 * self.size),            #bottom-left
+                (self.size, self.size, 2 * self.size, 2 * self.size) #bottom-right
+            ]
+
+            image_parts = []
+            mask_parts = []
+
+            for crop_box in crop_boxes:
+                img_part = img.crop(crop_box)
+                mask_part = mask.crop(crop_box)
+
+                img_part = (np.asarray(img_part, dtype=np.float32) / 255. - MEAN) / STD
+                mask_part = np.asarray(mask_part, dtype=np.int64)
+
+                image_parts.append(torch.from_numpy(img_part.copy()).permute(2, 0, 1))
+                mask_parts.append(torch.from_numpy(mask_part.copy()))
+
+            # image_parts: [4, 3, 512, 512]
+            # mask_parts:  [4, 512, 512]
+            return (torch.stack(image_parts), torch.stack(mask_parts))
+            
+
+            #(old) if we aren't traning, take a 512 x 512 center crop of the image and mask.
+            # width, height = img.size
+
+            # left = (width - self.size) // 2
+            # top = (height - self.size) // 2
+            # right = left + self.size
+            # bottom = top + self.size
+
+            # img = img.crop((left, top, right, bottom))
+            # mask = mask.crop((left, top, right, bottom))
+
 
         img = (np.asarray(img, dtype=np.float32) / 255. - MEAN) / STD
         mask = np.asarray(mask, dtype=np.int64)

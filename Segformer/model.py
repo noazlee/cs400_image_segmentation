@@ -55,7 +55,7 @@ def build_segformer(num_classes=4, drop_path_rate=0.1,
     return SegFormer(encoder, decoder, upsample=upsample)
 
 if __name__ == "__main__":
-    # check param sizes 
+    # check param sizes
     model = build_segformer()
     out = model(torch.randn(2, 3, 512, 512))
     print(out.shape) # expect [2, 4, 512, 512]
