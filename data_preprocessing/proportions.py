@@ -24,6 +24,7 @@ def get_proportions(filename, counts):
 
   return counts
 
+
 def math_proportions(counts):
   proportions = {0:0, 1:0, 2:0, 3:0, 255:0}
 
