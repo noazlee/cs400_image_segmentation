@@ -58,6 +58,49 @@ def iou(ground_truth, prediction, num_classes=4):
 
     return float(np.mean(ious)) if ious else np.nan
 
+def weighted_iou(ground_truth, prediction, num_classes=4):
+    gt_pixels = np.asarray(ground_truth).flatten()
+    pred_pixels = np.asarray(prediction).flatten()
+
+    if len(gt_pixels) != len(pred_pixels):
+        raise ValueError("Input images must have the same number of pixels.")
+
+    valid = (gt_pixels != 255) & (pred_pixels != 255)
+    gt_pixels = gt_pixels[valid]
+    pred_pixels = pred_pixels[valid]
+
+    ious = []
+    weights = []
+
+    # Calculate IoU separately for every semantic class, then mean them.
+    for class_id in range(num_classes):
+        gt_class = (gt_pixels == class_id)
+        pred_class = (pred_pixels == class_id)
+
+        gt_count = np.sum(gt_class)
+        # skip classes absent from GT: inverse-frequency weight is undefined
+        if gt_count == 0:
+            continue
+
+        intersection = np.sum(gt_class & pred_class)
+        union = np.sum(gt_class | pred_class)
+
+        if union > 0:
+            ious.append(intersection / union)
+
+        weight = 1/np.sum(gt_class)
+        weights.append(weight)
+
+    ious = np.array(ious)
+    if not ious:
+        return np.nan
+        
+    weights = np.array(weights)
+    
+    weights = weights / np.sum(weights)
+
+    return float(np.sum(ious * weights))
+
 
 def rand_index(ground_truth, prediction):
     gt_pixels = np.asarray(ground_truth).flatten()

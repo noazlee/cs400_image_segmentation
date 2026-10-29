@@ -59,6 +59,7 @@ METRIC_STYLES = {
     "dice": ("Dice", "#2a78d6", "o"),
     "rand_index": ("Rand Index", "#eb6834", "s"),
     "iou": ("IoU", "#1baf7a", "^"),
+    "weighted_iou": ("Weighted IoU", "#8a4fd6", "v"),
     "pixel_acc": ("Pixel acc", "#eda100", "D"),
 }
 
@@ -91,6 +92,7 @@ def print_results(results, name):
         f"[{name}] test Dice {results['dice']:.4f}"
         f"\n[{name}] test Rand Index {results['rand_index']:.4f}"
         f"\n[{name}] test IoU {results['iou']:.4f}"
+        f"\n[{name}] test Weighted IoU {results['weighted_iou']:.4f}"
         f"\n[{name}] test pixel acc {results['pixel_acc']:.4f}"
     )
 
@@ -99,6 +101,7 @@ def evaluate(model, loader, device):
     dice_scores = []
     rand_scores = []
     iou_scores = []
+    weighted_iou_scores = []
     correct = 0
     labelled = 0
 
@@ -115,6 +118,7 @@ def evaluate(model, loader, device):
             dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES-1))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
+            weighted_iou_scores.append(metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES-1))
 
         # pixel accuracy over labelled pixels only
         valid = masks_np != 255
@@ -125,6 +129,7 @@ def evaluate(model, loader, device):
         "dice": float(np.nanmean(dice_scores)),
         "rand_index": float(np.nanmean(rand_scores)),
         "iou": float(np.nanmean(iou_scores)),
+        "weighted_iou": float(np.nanmean(weighted_iou_scores)),
         "pixel_acc": float(correct / labelled),
     }
 

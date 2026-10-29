@@ -2,9 +2,9 @@
 File created by: Noah Lee
 
 Modified by Isaac Lund to add data augmentation to the training data as in the SegFormer paper.
+Modified by Isaac Lund to add split each image into four non-overlapping 512x512 quadrants for validation.
 
 This handles what happens with image data when being fetched by the dataloader in train.py.
-Add image augmentation in __get_item__()
 """
 
 from pathlib import Path
@@ -38,7 +38,8 @@ class MarsDataset(Dataset):
         return len(self.images)
 
     #This functions handles the case where we resize the image to be smaller than 512x512
-    #and we need to pad it to ensure a random 512x512 crop is possible.
+    #and we need to pad it to ensure a random 512x512 crop is possible---the crop is no longer 
+    #random in this case.
     def _pad_to_crop_size(self, img, mask):
         width, height = img.size
         pad_right = max(0, self.size - width)
@@ -49,9 +50,11 @@ class MarsDataset(Dataset):
             return img, mask
         
         padded_img = Image.new("RGB",(width + pad_right, height + pad_bottom),color=PAD_RGB)
+        #Paste the original image onto the padded image at the top-left corner.
         padded_img.paste(img, (0, 0))
 
         padded_mask = Image.new(mask.mode, (width + pad_right, height + pad_bottom), color=255)
+        #Paste the original mask onto the padded mask at the top-left corner.
         padded_mask.paste(mask, (0, 0))
 
         return padded_img, padded_mask
@@ -110,14 +113,10 @@ class MarsDataset(Dataset):
 
         if self.training:
             img, mask = self._training_transform(img, mask)
-            
+
+        #if the image is not being used for training, we split it into four non-overlapping 
+        #512x512 quadrants for validation.
         else:
-            #Validation images are 1024x1024. Split into four non-overlapping 512x512 quadrants.
-
-            width, height = img.size
-
-            expected_size = 2 * self.size
-
             crop_boxes = [
                 (0, 0, self.size, self.size),                        #top-left
                 (self.size, 0, 2 * self.size, self.size),            #top-right
@@ -143,7 +142,7 @@ class MarsDataset(Dataset):
             return (torch.stack(image_parts), torch.stack(mask_parts))
             
 
-            #(old) if we aren't traning, take a 512 x 512 center crop of the image and mask.
+            #(OLD) if we aren't traning, take a 512 x 512 center crop of the image and mask.
             # width, height = img.size
 
             # left = (width - self.size) // 2

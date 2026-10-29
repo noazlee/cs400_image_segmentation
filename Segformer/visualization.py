@@ -1,7 +1,13 @@
 """
 File created by: Isaac Lund
 
-This file visualizes intermediate SegFormer encoder feature maps for a single image.
+This file visualizes SegFormer encoder feature maps for a single image.
+
+Plot method 1: take the mean activation across all channels of each feature 
+    map. Do this for both the clean and dustified images, and then visualize the difference.
+Plot method 2: choose 4 random channels from each feature map and visualize them 
+    individually for both the clean and dustified images. Overlay the feature maps 
+    transparently over the original image with original resolution for better visualization.
 """
 
 import numpy as np
@@ -27,6 +33,10 @@ IMAGE_SIZE = 512
 NUM_CLASSES = 5
 
 def preprocess_image(image):
+    #Function that takes a center crop and preprocess it for model input.
+    #Used in: load_image() and main()
+
+    #Take a center crop
     width, height = image.size
 
     left = (width - IMAGE_SIZE) // 2
@@ -36,10 +46,14 @@ def preprocess_image(image):
 
     image = image.crop((left, top, right, bottom))
 
+    #Convert the PIL RGB channels into values that the model is trained for
+    #Change 0->255 to 0->1
+    #Center the values around 0
     display_image = np.asarray(image, dtype=np.float32) / 255.0
-
     normalized = (display_image - MEAN) / STD
 
+    #swaps the order from [height, width, channels] to [channels, height, width]
+    #adds a dimension for the batch number
     tensor = torch.from_numpy(
         normalized.copy()
     ).permute(2, 0, 1).unsqueeze(0)
@@ -47,10 +61,13 @@ def preprocess_image(image):
     return display_image, tensor
 
 def load_image(image_path):
+    #we will only need to load the original version of the image (the dustified version
+    # will be created during execution), so preprocessing needs to be a seperate function..
     image = Image.open(image_path).convert("RGB")
     return preprocess_image(image)
 
 def load_model(device):
+    #Load the SegFormer model from the specified path and move it to the given device (cuda if available)
     model = build_segformer(num_classes=NUM_CLASSES)
 
     state_dict = torch.load(MODEL_PATH, map_location=device)
@@ -63,10 +80,12 @@ def load_model(device):
     return model
 
 def get_feature_maps(model, image):
+    #make sure the model is in evaluation mode and no gradients are computed
     with torch.no_grad():feature_maps = model.encoder(image)
     return feature_maps
 
 def mean_activation(feature_map):
+    #Compute the mean activation across all channels of a feature map.
     activation = torch.mean(torch.abs(feature_map), dim=1)
 
     # Remove batch dimension
@@ -75,24 +94,26 @@ def mean_activation(feature_map):
     return activation.cpu().numpy()
 
 def feature_difference(clean_feature_map, dusty_feature_map):
-
+    #Compute the difference between the mean activations of two feature maps.
     difference = torch.abs(dusty_feature_map - clean_feature_map)
     difference = torch.mean(difference, dim=1)
 
     return difference[0].cpu().numpy()
 
 def upsample_channel(feature_map, channel, output_size=IMAGE_SIZE):
-    # Take one channel from a feature map and resize it to the
-    # original 512x512 input resolution.
-    # feature_map: [1, C, H, W]
+    #Take one channel from a feature map and resize it to the
+    #original 512x512 input resolution; later transformer blocks will have
+    #channels with smaller resolutions.
+
     channel_map = feature_map[:, channel:channel + 1, :, :]
 
+    #Resize the single channel to the original input resolution
     channel_map = F.interpolate(
         channel_map,
         size=(output_size, output_size),
         mode="nearest"
     )
-
+    #turn the single channel into a 2D numpy array for visualization
     channel_map = channel_map[0, 0].cpu().numpy()
 
     # Normalize this channel to [0, 1] for visualization
@@ -138,7 +159,7 @@ def visualize_random_channels(
 
     grid = fig.add_gridspec(5, 4, height_ratios=[1.3, 1, 1, 1, 1])
 
-    # Original image across the full top row
+    #Original image across the  top row
     image_ax = fig.add_subplot(grid[0, :])
     image_ax.imshow(image)
     image_ax.set_title(title, fontsize=16)
@@ -152,10 +173,10 @@ def visualize_random_channels(
             ax = fig.add_subplot(grid[stage + 1, column])
             ax.imshow(image)
 
-            # Feature channel resized to original input resolution
+            #Feature channel resized to original input resolution
             activation = upsample_channel(feature_map, channel)
 
-            # Transparent feature-map overlay
+            #Transparent feature-map overlay
             ax.imshow(
                 activation,
                 cmap="viridis",
@@ -183,14 +204,17 @@ def visualize(original, feature_maps, dustified_image, dusty_feature_maps):
     # Original and the four transformer layers
     fig, axes = plt.subplots(3, 5, figsize=(18, 15))
 
+    #original image
     axes[0, 0].imshow(original)
     axes[0, 0].set_title("Original image")
     axes[0, 0].axis("off")
 
+    #dustified version
     axes[1, 0].imshow(dustified_image)
     axes[1, 0].set_title("Dustified image")
     axes[1, 0].axis("off")
 
+    #There's no base image for the difference row, so we display a text label instead
     axes[2, 0].text(
         0.5,
         0.5,
@@ -201,14 +225,17 @@ def visualize(original, feature_maps, dustified_image, dusty_feature_maps):
     )
     axes[2, 0].axis("off")
 
+    #loop through the normal and dusty feature maps at the same time
     for i, (feature_map, dusty_feature_map) in enumerate(
         zip(feature_maps, dusty_feature_maps)):
 
+        #Compute the mean activations for both the clean and dusty feature maps
         clean_activation = mean_activation(feature_map)
         dusty_activation = mean_activation(dusty_feature_map)
 
         difference = feature_difference(feature_map, dusty_feature_map)
 
+        #ensure the color scale is consistent between the clean and dusty feature maps
         vmin = min(clean_activation.min(), dusty_activation.min())
         vmax = max(clean_activation.max(), dusty_activation.max())
 
@@ -256,29 +283,31 @@ def main():
     model = load_model(device)
     feature_maps = get_feature_maps(model, image)
 
+    #generate the dustified version of the image
     seed = 102326
     params = get_params(2, seed)
     dustified_pil = apply_martian_dust_storm(IMAGE_PATH, params, seed)
 
     #I thought the brightness of the dustification felt a little off, so 
-    #I adjusted it to match the original image's brightness. Not sure if this changes anything.
+    #I adjusted it to match the original image's brightness. Not sure
+    #how much this changes the relative activation weights
     dusty_array = np.asarray(dustified_pil, dtype=np.float32) / 255.0
     brightness_factor = np.mean(original) /  np.mean(dusty_array)
     dustified_pil = ImageEnhance.Brightness(
         dustified_pil
     ).enhance(brightness_factor)
 
+    #reformat the PIL object into a tensor for model input and get feature maps
     dustified_image, dusty_tensor = preprocess_image(dustified_pil)
     dusty_tensor = dusty_tensor.to(device)
-
     dusty_feature_maps = get_feature_maps(model, dusty_tensor)
 
-    # Choose the same four random channels for the clean
-    # and dustified visualizations so they can be compared directly.
+    #Choose the same four random channels for the clean
+    #and dustified visualizations so they can be compared directly.
     selected_channels = choose_random_channels(
         feature_maps,
         channels_per_stage=4,
-        seed=102726
+        seed=seed
     )
 
     visualize_random_channels(

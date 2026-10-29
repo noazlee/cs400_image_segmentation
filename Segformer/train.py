@@ -46,6 +46,7 @@ def validate(model, loader):
     dice_scores = []
     rand_scores = []
     iou_scores = []
+    weighted_iou_scores = []
 
     for images, masks in loader:
         #images: [B, 4, 3, 512, 512]
@@ -62,14 +63,11 @@ def validate(model, loader):
         for part in range(4):
             #[B, 3, 512, 512]
             image_part = images[:, part]
-            #[B, 512, 512]
             mask_part = masks[:, part]
-            #[B, NUM_CLASSES, 512, 512]
             logits = model(image_part)
 
             batch_loss += compute_loss(logits, mask_part).item()
 
-            # [B, 512, 512]
             prediction = torch.argmax(logits, dim=1)
 
             predicted_parts.append(prediction)
@@ -80,14 +78,10 @@ def validate(model, loader):
         # [B, 4, 512, 512]
         predicted_parts = torch.stack(predicted_parts, dim=1)
 
-        # Reconstruct original 1024x1024 prediction
+        # Reconstruct original 1024x1024 prediction and mask
         # [B, 1024, 1024]
         preds = recombine_quadrants(predicted_parts)
-
-        # Reconstruct original 1024x1024 ground-truth mask
-        # [B, 1024, 1024]
         masks = recombine_quadrants(masks)
-
         preds_np = preds.cpu().numpy()
         masks_np = masks.cpu().numpy()
 
@@ -98,6 +92,7 @@ def validate(model, loader):
             dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES-1))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
+            weighted_iou_scores.append(metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES-1))
 
     model.train()
     
@@ -106,6 +101,7 @@ def validate(model, loader):
         "dice": float(np.nanmean(dice_scores)),
         "rand_index": float(np.nanmean(rand_scores)),
         "iou": float(np.nanmean(iou_scores)),
+        "weighted_iou": float(np.nanmean(weighted_iou_scores))
     }
 
 # Load data
@@ -177,8 +173,11 @@ os.makedirs(save_dir, exist_ok=True)
 WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = None
 
-compute_loss = nn.CrossEntropyLoss(ignore_index=255) # ignore unlabelled 255
-# maybe scale 0 lower because so many 0s in data. TODO
+# pixel proportions of the train set: soil, bedrock, sand, big rock, none (unlabelled 255 -> 4)
+class_freqs = torch.tensor([0.20701, 0.27864, 0.06624, 0.00527, 0.44284])
+# inverse frequency weighting: the more common a class, the lower its weight
+class_weights = (1.0 / class_freqs).to(device)
+compute_loss = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255) # ignore padding 255
 
 optimizer = torch.optim.AdamW(model.parameters(), lr = lr, weight_decay=0.01)
 
@@ -193,7 +192,7 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[SEGFORMER] Non-Dusty4: {lr} (Normal - No Distortion)",
+    name=f"[SEGFORMER] Non-Dusty5: {lr} (Normal - No Distortion - Weighted Loss)",
     entity=WANDB_ENTITY,
     config={
         "num_iters": num_iters,
@@ -244,6 +243,7 @@ for i in range(num_iters):
             f"\nval Dice {val_metrics['dice']:.4f}"
             f"\nval Rand Index {val_metrics['rand_index']:.4f}"
             f"\nval IoU {val_metrics['iou']:.4f}"
+            f"\nval Weighted IoU {val_metrics['weighted_iou']:.4f}"
         )
         wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=i + 1)
 
