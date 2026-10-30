@@ -20,7 +20,7 @@ sys.path.insert(0, str(SEG_DIR))
 from dataset import MarsDataset
 from model import build_segformer
 
-CKPT = SEG_DIR / "models/best_seg_102526.pth"
+CKPT = SEG_DIR / "models/best_seg_103026_mixedloss.pth"
 DUST_LEVEL = 0 # 0 = clean, 1-4 = dustification_level_0-3
 
 CLASS_NAMES = ["soil", "bedrock", "sand", "big rock", "none"]

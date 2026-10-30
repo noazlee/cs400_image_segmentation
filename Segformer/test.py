@@ -32,13 +32,13 @@ import metrics
 
 # clean test set (images + labels). Dusted test images live in DUSTED_DIR/dustification_level_{0-3}/
 # as <name>_dusted{N}.JPG and reuse the clean labels
-DATA_PATHS = {
-    0: REPO_ROOT / "data/non-dusted/test",
-}
+CLEAN_DIR = REPO_ROOT / "data/non-dusted/test"
 DUSTED_DIR = REPO_ROOT / "data/dusted/test"
 
 # level 0 = clean, levels 1-4 = dustification_level_0-3 (dust 0 is the lightest dust)
 DUST_LABELS = ["clean", "dust 0", "dust 1", "dust 2", "dust 3"]
+# levels compared by test_data_dustifications. skipping random dust
+DUSTIFICATION_LEVELS = [0, 2, 3, 4]
 
 NUM_CLASSES = 5 # soil, bedrock, sand, big rock, none (unlabelled 255 -> 4 in dataset.py)
 
@@ -71,7 +71,7 @@ def load_model(ckpt_path, device):
 
 def load_test_set(level):
     # dusted images reuse the clean test labels; swap the image paths, labels stay paired by index
-    test_set = MarsDataset(DATA_PATHS[0], size=512, training=False)
+    test_set = MarsDataset(CLEAN_DIR,size=512, training=False)
     if level > 0:
         dust = level - 1
         test_set.images = [DUSTED_DIR / f"dustification_level_{dust}" / f"{p.stem}_dusted{dust}.JPG"
@@ -236,7 +236,7 @@ def viz_predictions_dustifications(model, test_sets, device, out_path, n=10, see
             _overlay(axes[row, 1 + level], img_np, pred)
         axes[row, 0].set_ylabel(test_sets[0].images[idx].stem, fontsize=6)
 
-    titles = ["label"] + [f"pred ({name})" for name in DUST_LABELS[:len(test_sets)]]
+    titles = ["label"] + [f"pred ({DUST_LABELS[level]})" for level in DUSTIFICATION_LEVELS]
     _finish_grid(fig, axes, titles, out_path)
 
 def plot_dust_metrics(all_results, out_path, title):
@@ -253,7 +253,7 @@ def plot_dust_metrics(all_results, out_path, title):
             ax.annotate(f"{values[i]:.3f}", (x[i], values[i]), textcoords="offset points",
                         xytext=(0, 7), ha="center", fontsize=8, color="#333333")
 
-    ax.set_xticks(x, DUST_LABELS[:len(all_results)])
+    ax.set_xticks(x, [DUST_LABELS[level] for level in DUSTIFICATION_LEVELS])
     ax.set_xlabel("dust level")
     ax.set_ylabel("score")
     ax.set_ylim(0, 1.05)
@@ -307,7 +307,8 @@ def test_data_dustifications(ckpt_path):
     # run eval + the standard figure for every level
     test_sets = []
     all_results = []
-    for level, name in enumerate(DUST_LABELS):
+    for level in DUSTIFICATION_LEVELS:
+        name = DUST_LABELS[level]
         print(f"Loading data ({name})")
         test_dataset = load_test_set(level)
         print(f"{len(test_dataset)} testing images")
@@ -324,8 +325,8 @@ def test_data_dustifications(ckpt_path):
     with open("results/dust_metrics.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["level", *METRIC_STYLES])
         writer.writeheader()
-        for name, results in zip(DUST_LABELS, all_results):
-            writer.writerow({"level": name, **results})
+        for level, results in zip(DUSTIFICATION_LEVELS, all_results):
+            writer.writerow({"level": DUST_LABELS[level], **results})
 
     # Compare results
     plot_dust_metrics(all_results, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
