@@ -91,10 +91,10 @@ def weighted_iou(ground_truth, prediction, num_classes=4):
         weight = 1/np.sum(gt_class)
         weights.append(weight)
 
-    ious = np.array(ious)
     if not ious:
         return np.nan
-        
+
+    ious = np.array(ious)
     weights = np.array(weights)
     
     weights = weights / np.sum(weights)
