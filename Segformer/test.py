@@ -59,6 +59,7 @@ METRIC_STYLES = {
     "dice": ("Dice", "#2a78d6", "o"),
     "rand_index": ("Rand Index", "#eb6834", "s"),
     "iou": ("IoU", "#1baf7a", "^"),
+    "weighted_iou": ("Weighted IoU", "#8a4fd6", "v"),
     "pixel_acc": ("Pixel acc", "#eda100", "D"),
 }
 
@@ -86,11 +87,22 @@ def make_loader(test_set):
         pin_memory=True,
     )
 
+def recombine_quadrants(parts):
+    #Recombine four 512x512 quadrants into one 1024x1024 image/mask (same as train.py).
+    #Input: [B, 4, H, W]
+    #Output: [B, 2H, 2W]
+
+    top = torch.cat((parts[:, 0], parts[:, 1]), dim=-1)
+    bottom = torch.cat((parts[:, 2], parts[:, 3]), dim=-1)
+
+    return torch.cat((top, bottom), dim=-2)
+
 def print_results(results, name):
     print(
         f"[{name}] test Dice {results['dice']:.4f}"
         f"\n[{name}] test Rand Index {results['rand_index']:.4f}"
         f"\n[{name}] test IoU {results['iou']:.4f}"
+        f"\n[{name}] test Weighted IoU {results['weighted_iou']:.4f}"
         f"\n[{name}] test pixel acc {results['pixel_acc']:.4f}"
     )
 
@@ -99,13 +111,26 @@ def evaluate(model, loader, device):
     dice_scores = []
     rand_scores = []
     iou_scores = []
+    weighted_iou_scores = []
     correct = 0
     labelled = 0
 
     for images, masks in loader:
+        #images: [B, 4, 3, 512, 512]
+        #masks:  [B, 4, 512, 512]
         images = images.to(device, non_blocking=True)
-        preds = torch.argmax(model(images), dim=1).cpu().numpy()
-        masks_np = masks.numpy()
+
+        #Run each 512x512 quadrant through SegFormer independently
+        predicted_parts = []
+        for part in range(4):
+            #[B, 3, 512, 512]
+            logits = model(images[:, part])
+            predicted_parts.append(torch.argmax(logits, dim=1))
+
+        # Reconstruct original 1024x1024 prediction and mask
+        # [B, 1024, 1024]
+        preds = recombine_quadrants(torch.stack(predicted_parts, dim=1)).cpu().numpy()
+        masks_np = recombine_quadrants(masks).numpy()
 
         # ignore "none" ground-truth pixels so metrics match the 4-class setup (same as train.py)
         masks_np = masks_np.copy()
@@ -115,6 +140,7 @@ def evaluate(model, loader, device):
             dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES-1))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
+            weighted_iou_scores.append(metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES-1))
 
         # pixel accuracy over labelled pixels only
         valid = masks_np != 255
@@ -125,6 +151,7 @@ def evaluate(model, loader, device):
         "dice": float(np.nanmean(dice_scores)),
         "rand_index": float(np.nanmean(rand_scores)),
         "iou": float(np.nanmean(iou_scores)),
+        "weighted_iou": float(np.nanmean(weighted_iou_scores)),
         "pixel_acc": float(correct / labelled),
     }
 
@@ -163,8 +190,15 @@ def viz_predictions(model, test_set, device, out_path, n=10, seed=102326):
     fig, axes = plt.subplots(n, 3, figsize=(9, 3 * n))
 
     for row, idx in enumerate(indices):
+        #img: [4, 3, 512, 512], mask: [4, 512, 512]
         img, mask = test_set[idx]
-        pred = torch.argmax(model(img[None].to(device)), dim=1)[0].cpu().numpy()
+        img = img[None].to(device)
+        predicted_parts = [torch.argmax(model(img[:, part]), dim=1) for part in range(4)]
+        pred = recombine_quadrants(torch.stack(predicted_parts, dim=1))[0].cpu().numpy()
+
+        # stitch the quadrants back into the full 1024x1024 image/mask for display
+        img = recombine_quadrants(img)[0].cpu()
+        mask = recombine_quadrants(mask[None])[0]
 
         img_np = _to_display(img)
         mask_np = np.ma.masked_equal(mask.numpy(), 255)
@@ -186,8 +220,15 @@ def viz_predictions_dustifications(model, test_sets, device, out_path, n=10, see
 
     for row, idx in enumerate(indices):
         for level, test_set in enumerate(test_sets):
+            #img: [4, 3, 512, 512], mask: [4, 512, 512]
             img, mask = test_set[idx]
-            pred = torch.argmax(model(img[None].to(device)), dim=1)[0].cpu().numpy()
+            img = img[None].to(device)
+            predicted_parts = [torch.argmax(model(img[:, part]), dim=1) for part in range(4)]
+            pred = recombine_quadrants(torch.stack(predicted_parts, dim=1))[0].cpu().numpy()
+
+            # stitch the quadrants back into the full 1024x1024 image/mask for display
+            img = recombine_quadrants(img)[0].cpu()
+            mask = recombine_quadrants(mask[None])[0]
             img_np = _to_display(img)
 
             if level == 0:
@@ -292,7 +333,7 @@ def test_data_dustifications(ckpt_path):
 
     return all_results
 
-ckpt = "models/best_seg_102526.pth"
+ckpt = "models/best_seg_103026_mixedloss.pth"
 dust = 0
 DUSTIFICATION = True
 
