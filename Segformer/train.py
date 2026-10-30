@@ -175,8 +175,9 @@ WANDB_ENTITY = None
 
 # pixel proportions of the train set: soil, bedrock, sand, big rock, none (unlabelled 255 -> 4)
 class_freqs = torch.tensor([0.20701, 0.27864, 0.06624, 0.00527, 0.44284])
-# inverse frequency weighting: the more common a class, the lower its weight
-class_weights = (1.0 / class_freqs).to(device)
+# square-root median frequency balancing: sqrt(median / freq), so the more common a
+# class, the lower its weight, with the sqrt keeping rare classes from dominating
+class_weights = torch.sqrt(class_freqs.median() / class_freqs).to(device)
 compute_loss = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255) # ignore padding 255
 
 optimizer = torch.optim.AdamW(model.parameters(), lr = lr, weight_decay=0.01)
