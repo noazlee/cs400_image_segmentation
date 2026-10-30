@@ -1,5 +1,18 @@
+#!/usr/bin/env python
+
+#################################
+#                               #
+#    U-Net Model Definition     #
+#    created by Warren Kozak    #
+#                               #
+#################################
+
+# Imports
 import torch
 import torch.nn as nn
+
+# So we can use pre-trained ResNet34
+from torchvision.models import resnet34, ResNet34_Weights
 
 # TODO: Maybe use nn.Sequential for each decoder/decoder Block?
 # TODO: Do I need to use batch normalization after each convolutional layer?
@@ -51,14 +64,26 @@ class UNetDecoderBlock(nn.Module):
 class UNet(nn.Module):
     '''A class implementing the U-Net model for image segmentation.'''
 
-    def __init__(self):
+    def __init__(self, resnet_encoder=False):
         super().__init__()
+        self.resnet_encoder = resnet_encoder
 
-        # Encoder layers
-        self.encoder1 = UNetEncoderBlock(1, 64)
-        self.encoder2 = UNetEncoderBlock(64, 128)
-        self.encoder3 = UNetEncoderBlock(128, 256)
-        self.encoder4 = UNetEncoderBlock(256, 512)
+        # If resnet_encoder=True, use the pretrained ResNet34 as the encoder for the U-Net.
+        # This should help the model train faster and perform better.
+        if self.resnet_encoder:
+            resnet = resnet34(weights=ResNet34_Weights)
+            self.init_conv = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu)
+            self.maxpool = resnet.maxpool
+            self.layer1 = resnet.layer1
+            self.layer2 = resnet.layer2
+            self.layer3 = resnet.layer3
+            self.layer4 = resnet.layer4
+            
+        else:
+            self.encoder1 = UNetEncoderBlock(1, 64)
+            self.encoder2 = UNetEncoderBlock(64, 128)
+            self.encoder3 = UNetEncoderBlock(128, 256)
+            self.encoder4 = UNetEncoderBlock(256, 512)
 
         # Bottleneck
         self.bottleneck = nn.Sequential(
@@ -89,11 +114,20 @@ class UNet(nn.Module):
 
     def forward(self, x):
 
-        # Run the encoder and save the intermediate outputs
-        skip1, x = self.encoder1(x)
-        skip2, x = self.encoder2(x)
-        skip3, x = self.encoder3(x)
-        skip4, x = self.encoder4(x)
+        if self.resnet_encoder:
+            skip1 = self.init_conv(x)
+            downsampled = self.maxpool(skip1)
+            skip2 = self.layer1(skip1)
+            skip3 = self.layer2(skip2)
+            skip4 = self.layer3(skip3)
+            x = self.layer4(skip4)
+
+        else:
+            # Run the encoder and save the intermediate outputs
+            skip1, x = self.encoder1(x)
+            skip2, x = self.encoder2(x)
+            skip3, x = self.encoder3(x)
+            skip4, x = self.encoder4(x)
 
         # Run the bottleneck
         x = self.bottleneck(x)
@@ -113,5 +147,5 @@ class UNet(nn.Module):
         return self.output(x)
 
 if __name__ == "__main__":
-    model = UNet()
-    print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")
+    #model = UNet()
+    #print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")
