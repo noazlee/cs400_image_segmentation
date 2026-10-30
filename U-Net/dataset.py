@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+
+#################################
+#                               #
+#        AI4Mars Dataset        #
+#    created by Warren Kozak    #
+#                               #
+#################################
+
 import cv2
 import os
 import torch
