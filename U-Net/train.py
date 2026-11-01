@@ -40,14 +40,20 @@ print(f"Using device: {device}")
 
 # Transform for the training set
 train_transform = A.Compose([
-    A.PadIfNeeded(min_height=512, min_width=512, fill_mask=255, border_mode=0),
+    A.RandomScale(
+        scale_range=(0.5, 2),
+        interpolation=cv2.INTER_LINEAR,
+        mask_interpolation=cv2.INTER_NEAREST,
+        p=1.0
+    ),
+    A.PadIfNeeded(min_height=512, min_width=512, fill_mask=0, border_mode=0),
     A.RandomCrop(512, 512),
     A.HorizontalFlip(p=0.5)
 ])
 
 # Transform for the validation set
 val_transform = A.Compose([
-    A.PadIfNeeded(min_height=512, min_width=512, fill_mask=255, border_mode=0),
+    A.PadIfNeeded(min_height=512, min_width=512, fill_mask=0, border_mode=0),
     A.CenterCrop(height=512, width=512)
 ])
 
@@ -70,9 +76,10 @@ val_dataloader = DataLoader(val, batch_size=1, shuffle=True)
 # Training configuration
 num_epochs = 10
 lr = 3e-4
+weight_decay = 1e-4
 log_every = 10
 val_every = 1000
-save_dir = "output"
+save_dir = "output_version_3"
 os.makedirs(save_dir, exist_ok=True)
 
 # Weights & Biases configuration
@@ -80,7 +87,7 @@ WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = "noahzlee7-carleton-college"
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[U-Net] Non-Dusty3: {lr}",
+    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss",
     entity=WANDB_ENTITY,
     config={
         "num_epochs": num_epochs,
@@ -91,16 +98,35 @@ wandb.init(
     },
 )
 
+# Figure out the class distributions in the training set
+# Once the count of each pixel label has been created, divide each by the median and
+# take the square root to get the final class weight.
+print("Calculating relative class weights...")
+num_classes = 5
+total_counts = torch.zeros(num_classes, dtype=torch.long)
+
+for _, label in train_dataloader:
+    label = label.long()
+    counts = torch.bincount(label.flatten(), minlength=num_classes)
+    total_counts += counts
+
+counts = total_counts.float()
+median = counts.median()
+class_weights = median / counts
+class_weights = torch.sqrt(class_weights)
+print(f"Class weights: {class_weights}")
+
+# Initialize the model, loss function, optimizer, and learning rate scheduler
 print("Initializing model, loss fn, optimizer...")
 model = UNet().to(device)
 loss_fn = nn.CrossEntropyLoss(
-    ignore_index=255,
-    weight=torch.tensor([0.3, 1, 1, 1, 1]).to(device)
+    ignore_index=0,
+    weight=class_weights.to(device)
 )
 opt = optim.AdamW(
     model.parameters(),
     lr=lr,
-    weight_decay=1e-4
+    weight_decay=weight_decay
 )
 sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=num_epochs * len(train_dataloader))
 
@@ -184,7 +210,10 @@ for epoch in range(num_epochs):
             print(
                 f"Batch {i + 1} loss: {running_loss / log_every:.4f}"
             )
-            wandb.log({"train/loss": running_loss / log_every}, step=global_step)
+            wandb.log({
+                "train/loss": running_loss / log_every,
+                "train/lr": lr
+            }, step=global_step)
             running_loss = 0.0
 
         if (i + 1) % val_every == 0:
@@ -207,4 +236,4 @@ for epoch in range(num_epochs):
 
 
 wandb.finish()
-torch.save(model.state_dict(), 'output/final.pth')
+torch.save(model.state_dict(), f'{save_dir}/final.pth')
