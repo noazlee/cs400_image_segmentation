@@ -117,7 +117,7 @@ class UNet(nn.Module):
         if self.resnet_encoder:
             skip1 = self.init_conv(x)
             downsampled = self.maxpool(skip1)
-            skip2 = self.layer1(skip1)
+            skip2 = self.layer1(downsampled)
             skip3 = self.layer2(skip2)
             skip4 = self.layer3(skip3)
             x = self.layer4(skip4)
@@ -147,5 +147,8 @@ class UNet(nn.Module):
         return self.output(x)
 
 if __name__ == "__main__":
-    #model = UNet()
-    #print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")
+    model = UNet()
+    test = torch.rand(1, 1, 512, 512)
+    print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")
+    output = model(test)
+    print(f"Output: {output}")
