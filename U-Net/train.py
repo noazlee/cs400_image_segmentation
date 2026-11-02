@@ -38,23 +38,28 @@ import metrics
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
+# ImageNet mean and standard deviation
+mean = [0.485, 0.456, 0.406]
+std  = [0.229, 0.224, 0.225]
+
 # Transform for the training set
 train_transform = A.Compose([
     A.RandomScale(
-        scale_range=(0.5, 2),
+        scale_limit=(0.5, 2),
         interpolation=cv2.INTER_LINEAR,
         mask_interpolation=cv2.INTER_NEAREST,
         p=1.0
     ),
     A.PadIfNeeded(min_height=512, min_width=512, fill_mask=0, border_mode=0),
     A.RandomCrop(512, 512),
-    A.HorizontalFlip(p=0.5)
+    A.HorizontalFlip(p=0.5),
+    A.Normalize(mean, std)
 ])
 
 # Transform for the validation set
 val_transform = A.Compose([
     A.PadIfNeeded(min_height=512, min_width=512, fill_mask=0, border_mode=0),
-    A.CenterCrop(height=512, width=512)
+    A.Normalize(mean, std)
 ])
 
 # Initialize the dataset
@@ -78,8 +83,7 @@ num_epochs = 10
 lr = 3e-4
 weight_decay = 1e-4
 log_every = 10
-val_every = 1000
-save_dir = "output_version_3"
+save_dir = "output_version_4"
 os.makedirs(save_dir, exist_ok=True)
 
 # Weights & Biases configuration
@@ -87,7 +91,7 @@ WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = "noahzlee7-carleton-college"
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss",
+    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss, ResNet34",
     entity=WANDB_ENTITY,
     config={
         "num_epochs": num_epochs,
@@ -111,14 +115,14 @@ for _, label in train_dataloader:
     total_counts += counts
 
 counts = total_counts.float()
-median = counts.median()
-class_weights = median / counts
-class_weights = torch.sqrt(class_weights)
+median = counts[1:].median()
+class_weights = torch.sqrt(median / counts)
+class_weights[0] = 0.0
 print(f"Class weights: {class_weights}")
 
 # Initialize the model, loss function, optimizer, and learning rate scheduler
 print("Initializing model, loss fn, optimizer...")
-model = UNet().to(device)
+model = UNet(resnet_encoder=True).to(device)
 loss_fn = nn.CrossEntropyLoss(
     ignore_index=0,
     weight=class_weights.to(device)
@@ -130,6 +134,16 @@ opt = optim.AdamW(
 )
 sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=num_epochs * len(train_dataloader))
 
+def recombine_quadrants(parts):
+    #Recombine four 512x512 quadrants into one 1024x1024 image/mask.
+    #Input: [B, 4, H, W]
+    #Output: [B, 2H, 2W]
+
+    top = torch.cat((parts[:, 0], parts[:, 1]), dim=-1)
+    bottom = torch.cat((parts[:, 2], parts[:, 3]), dim=-1)
+
+    return torch.cat((top, bottom), dim=-2)
+
 NUM_CLASSES = 5
 @torch.no_grad()
 def validate(model, dataloader):
@@ -139,32 +153,64 @@ def validate(model, dataloader):
 
     model.eval()
     total_loss = 0.0
+    n_images = 0
     dice_scores = []
     rand_scores = []
     iou_scores = []
+    weighted_iou_scores = []
 
     for i, data in enumerate(dataloader):
         image, label = data
         image = image.to(device)
         label = label.to(device).long()
 
-        if (label != 255).sum() == 0:
+        if (label != 0).sum() == 0:
             continue
 
-        logits = model(image)
-        total_loss += loss_fn(logits, label).item()
+        predicted_parts = []
+        masks = []
+        n_loss = 0
+        batch_loss = 0.0
 
-        pred = torch.argmax(logits, dim=1)
+        quads = [
+            (image[:, :, :512, :512], label[:, :512, :512]),
+            (image[:, :, :512, 512:], label[:, :512, 512:]),
+            (image[:, :, 512:, :512], label[:, 512:, :512]),
+            (image[:, :, 512:, 512:], label[:, 512:, 512:]),
+        ]
 
-        pred_np = pred.cpu().numpy()
-        label_np = label.cpu().numpy()
+        # Run each 512x512 quadrant through SegFormer independently
+        for img_q, lbl_q in quads:
+            #[B, 3, 512, 512]
+            logits = model(img_q)
+            if (lbl_q != 0).any():
+                batch_loss += loss_fn(logits, lbl_q).item()
+                n_loss += 1
+            predicted_parts.append(torch.argmax(logits, dim=1))
+            masks.append(lbl_q)
 
-        for ground_truth, prediction in zip(label_np, pred_np):
+        # Average loss across the four quadrants
+        total_loss += batch_loss / max(n_loss, 1)
+        n_images += 1
+
+        # [B, 4, 512, 512]
+        predicted_parts = torch.stack(predicted_parts, dim=1)
+        masks = torch.stack(masks, dim=1)
+
+        # Reconstruct original 1024x1024 prediction and mask
+        # [B, 1024, 1024]
+        preds = recombine_quadrants(predicted_parts)
+        masks = recombine_quadrants(masks)
+        preds_np = preds.cpu().numpy()
+        masks_np = masks.cpu().numpy()
+
+        for ground_truth, prediction in zip(masks_np, preds_np):
             ground_truth = ground_truth.copy()
             ground_truth[ground_truth == 0] = 255
             dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES))
+            weighted_iou_scores.append(metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES))
     
     model.train()
 
@@ -172,15 +218,15 @@ def validate(model, dataloader):
     ai4mars.validation_enabled = False
         
     return {
-        "loss": total_loss / len(dataloader),
+        "loss": total_loss / max(n_images, 1),
         "dice": float(np.nanmean(dice_scores)),
         "rand_index": float(np.nanmean(rand_scores)),
         "iou": float(np.nanmean(iou_scores)),
+        "weighted_iou": float(np.nanmean(weighted_iou_scores))
     }
 
-
 global_step = 1
-best_val = float("inf")
+best_val_wiou = float("inf")
 
 print("Beginning training...")
 for epoch in range(num_epochs):
@@ -195,7 +241,7 @@ for epoch in range(num_epochs):
         input = input.to(device)
         label = label.to(device)
 
-        if (label != 255).sum() == 0:
+        if (label != 0).sum() == 0:
             continue
 
         opt.zero_grad()
@@ -212,28 +258,26 @@ for epoch in range(num_epochs):
             )
             wandb.log({
                 "train/loss": running_loss / log_every,
-                "train/lr": lr
+                "train/lr": sched.get_last_lr()[0]
             }, step=global_step)
             running_loss = 0.0
 
-        if (i + 1) % val_every == 0:
-            val_metrics = validate(model, val_dataloader)
-            print(
-                f"val loss {val_metrics['loss']:.4f}"
-                f"\nval Dice {val_metrics['dice']:.4f}"
-                f"\nval Rand Index {val_metrics['rand_index']:.4f}"
-                f"\nval IoU {val_metrics['iou']:.4f}"
-            )
-            wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=global_step)
-
-            if val_metrics["loss"] < best_val:
-                best_val = val_metrics["loss"]
-                torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
-                print(f"Saved new best model to {save_dir}/best.pth")
-                wandb.run.summary["best_val_loss"] = best_val
-
         global_step += 1
 
+    val_metrics = validate(model, val_dataloader)
+    print(
+        f"val loss {val_metrics['loss']:.4f}"
+        f"\nval Dice {val_metrics['dice']:.4f}"
+        f"\nval Rand Index {val_metrics['rand_index']:.4f}"
+        f"\nval IoU {val_metrics['iou']:.4f}"
+    )
+    wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=global_step)
+
+    if val_metrics["weighted_iou"] < best_val_wiou:
+        best_val_wiou = val_metrics["weighted_iou"]
+        torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
+        print(f"Saved new best model to {save_dir}/best.pth")
+        wandb.run.summary["best_val_loss"] = best_val_wiou
 
 wandb.finish()
 torch.save(model.state_dict(), f'{save_dir}/final.pth')
