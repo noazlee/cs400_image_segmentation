@@ -36,7 +36,7 @@ CLEAN_DIR = REPO_ROOT / "data/non-dusted/test"
 DUSTED_DIR = REPO_ROOT / "data/dusted/test"
 
 # level 0 = clean, levels 1-4 = dustification_level_0-3 (dust 0 is the lightest dust)
-DUST_LABELS = ["clean", "dust 0", "dust 1", "dust 2", "dust 3"]
+DUST_LABELS = ["clean", "dust 0", "light dust", "medium dust", "heavy dust"]
 # levels compared by test_data_dustifications. skipping random dust
 DUSTIFICATION_LEVELS = [0, 2, 3, 4]
 
@@ -54,14 +54,15 @@ CLASS_CMAP = ListedColormap(list(CLASS_COLORS.values()))
 CLASS_CMAP.set_bad(alpha=0)
 OVERLAY_ALPHA = 0.5 # opacity of label/prediction colors drawn over the image
 
-# metric -> (display name, line color, marker) for the dust-level comparison plot
-METRIC_STYLES = {
-    "dice": ("Dice", "#2a78d6", "o"),
-    "rand_index": ("Rand Index", "#eb6834", "s"),
-    "iou": ("IoU", "#1baf7a", "^"),
-    "weighted_iou": ("Weighted IoU", "#8a4fd6", "v"),
-    "pixel_acc": ("Pixel acc", "#eda100", "D"),
+# metric -> display name for the dust-level comparison plot
+METRIC_NAMES = {
+    "dice": "Dice",
+    "rand_index": "Rand Index",
+    "iou": "IoU",
+    "weighted_iou": "Weighted IoU",
 }
+# box fill per compared level (DUSTIFICATION_LEVELS order), light -> dark as dust increases
+DUST_COLORS = ["#e3eef9", "#e9c99a", "#c98a4b", "#8c5527"]
 
 def load_model(ckpt_path, device):
     model = build_segformer(num_classes=NUM_CLASSES)
@@ -97,23 +98,21 @@ def recombine_quadrants(parts):
 
     return torch.cat((top, bottom), dim=-2)
 
-def print_results(results, name):
-    print(
-        f"[{name}] test Dice {results['dice']:.4f}"
-        f"\n[{name}] test Rand Index {results['rand_index']:.4f}"
-        f"\n[{name}] test IoU {results['iou']:.4f}"
-        f"\n[{name}] test Weighted IoU {results['weighted_iou']:.4f}"
-        f"\n[{name}] test pixel acc {results['pixel_acc']:.4f}"
-    )
+def mean_scores(scores):
+    # per-image scores -> mean of each metric, skipping images where it's undefined (nan)
+    return {key: float(np.nanmean(values)) for key, values in scores.items()}
+
+def print_results(scores, name):
+    for key, value in mean_scores(scores).items():
+        print(f"[{name}] test {METRIC_NAMES[key]} {value:.4f}")
 
 @torch.no_grad()
 def evaluate(model, loader, device):
+    # Output: per-image scores for each metric (metric -> array, one entry per test image)
     dice_scores = []
     rand_scores = []
     iou_scores = []
     weighted_iou_scores = []
-    correct = 0
-    labelled = 0
 
     for images, masks in loader:
         #images: [B, 4, 3, 512, 512]
@@ -142,17 +141,11 @@ def evaluate(model, loader, device):
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
             weighted_iou_scores.append(metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES-1))
 
-        # pixel accuracy over labelled pixels only
-        valid = masks_np != 255
-        correct += np.sum(preds[valid] == masks_np[valid])
-        labelled += np.sum(valid)
-
     return {
-        "dice": float(np.nanmean(dice_scores)),
-        "rand_index": float(np.nanmean(rand_scores)),
-        "iou": float(np.nanmean(iou_scores)),
-        "weighted_iou": float(np.nanmean(weighted_iou_scores)),
-        "pixel_acc": float(correct / labelled),
+        "dice": np.array(dice_scores),
+        "rand_index": np.array(rand_scores),
+        "iou": np.array(iou_scores),
+        "weighted_iou": np.array(weighted_iou_scores),
     }
 
 ## Matplotlib code - assisted by Claude
@@ -239,31 +232,46 @@ def viz_predictions_dustifications(model, test_sets, device, out_path, n=10, see
     titles = ["label"] + [f"pred ({DUST_LABELS[level]})" for level in DUSTIFICATION_LEVELS]
     _finish_grid(fig, axes, titles, out_path)
 
-def plot_dust_metrics(all_results, out_path, title):
-    # Input: list of metric dicts ordered clean -> most dust
-    # Output: line plot of every metric against dust level, saved to out_path
-    x = np.arange(len(all_results))
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+# Claude used for this function
+def plot_dust_metrics(all_scores, out_path, title):
+    # Input: list of per-image score dicts (from evaluate) ordered clean -> most dust
+    # Output: one boxplot panel per metric, one box per dust level, saved to out_path
+    labels = [DUST_LABELS[level] for level in DUSTIFICATION_LEVELS]
+    x = np.arange(1, len(labels) + 1)
+    fig, axes = plt.subplots(1, len(METRIC_NAMES), figsize=(3.2 * len(METRIC_NAMES), 4.2))
 
-    for key, (name, color, marker) in METRIC_STYLES.items():
-        values = [r[key] for r in all_results]
-        ax.plot(x, values, color=color, linewidth=2, marker=marker, markersize=7, label=name)
-        # label the end points only, so the change from clean -> most dust is readable
-        for i in (0, len(values) - 1):
-            ax.annotate(f"{values[i]:.3f}", (x[i], values[i]), textcoords="offset points",
-                        xytext=(0, 7), ha="center", fontsize=8, color="#333333")
+    for ax, (key, name) in zip(axes, METRIC_NAMES.items()):
+        # drop images where the metric is undefined (nan)
+        data = [scores[key][~np.isnan(scores[key])] for scores in all_scores]
+        box = ax.boxplot(
+            data, positions=x, widths=0.6, patch_artist=True,
+            medianprops=dict(color="#222222", linewidth=1.5),
+            whiskerprops=dict(color="#666666"), capprops=dict(color="#666666"),
+            flierprops=dict(marker="o", markersize=2.5, markerfacecolor="#999999",
+                            markeredgecolor="none", alpha=0.6),
+        )
+        for patch, color in zip(box["boxes"], DUST_COLORS):
+            patch.set_facecolor(color)
+            patch.set_edgecolor("#666666")
 
-    ax.set_xticks(x, [DUST_LABELS[level] for level in DUSTIFICATION_LEVELS])
-    ax.set_xlabel("dust level")
-    ax.set_ylabel("score")
-    ax.set_ylim(0, 1.05)
-    ax.set_title(title)
-    ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
-    ax.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    ax.legend(frameon=False, loc="lower left")
+        # mean as a labelled white diamond (same value as the printed results / dust_metrics.csv)
+        means = [d.mean() for d in data]
+        ax.scatter(x, means, marker="D", s=22, color="white", edgecolor="#222222", zorder=3)
+        for xi, m in zip(x, means):
+            ax.annotate(f"{m:.3f}", (xi, m), textcoords="offset points", xytext=(0, -12),
+                        ha="center", fontsize=7, color="#222222",
+                        bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none", alpha=0.8))
 
+        ax.set_title(name)
+        ax.set_xticks(x, [label.replace(" ", "\n") for label in labels])
+        ax.set_ylim(top=1.02)
+        ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+
+    axes[0].set_ylabel("per-image score")
+    fig.suptitle(title)
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
@@ -285,15 +293,15 @@ def test_data(dust_level, ckpt_path):
 
     # Metrics
     print("Evaluating")
-    results = evaluate(model, test_loader, device)
-    print_results(results, DUST_LABELS[dust_level])
+    scores = evaluate(model, test_loader, device)
+    print_results(scores, DUST_LABELS[dust_level])
 
     # Visualize
     os.makedirs("results", exist_ok=True)
     out_path = f"results/test_dust{dust_level}.png"
     viz_predictions(model, test_dataset, device, out_path)
 
-    return results
+    return scores
 
 # runs test_data's steps on the clean set + every dust level, then compares them
 def test_data_dustifications(ckpt_path):
@@ -306,7 +314,7 @@ def test_data_dustifications(ckpt_path):
 
     # run eval + the standard figure for every level
     test_sets = []
-    all_results = []
+    all_scores = []
     for level in DUSTIFICATION_LEVELS:
         name = DUST_LABELS[level]
         print(f"Loading data ({name})")
@@ -314,31 +322,32 @@ def test_data_dustifications(ckpt_path):
         print(f"{len(test_dataset)} testing images")
 
         print(f"Evaluating ({name})")
-        results = evaluate(model, make_loader(test_dataset), device)
-        print_results(results, name)
+        scores = evaluate(model, make_loader(test_dataset), device)
+        print_results(scores, name)
         viz_predictions(model, test_dataset, device, f"results/test_dust{level}.png")
 
         test_sets.append(test_dataset)
-        all_results.append(results)
+        all_scores.append(scores)
 
-    # one row per level
+    # one row per level, mean of each metric
     with open("results/dust_metrics.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["level", *METRIC_STYLES])
+        writer = csv.DictWriter(f, fieldnames=["level", *METRIC_NAMES])
         writer.writeheader()
-        for level, results in zip(DUSTIFICATION_LEVELS, all_results):
-            writer.writerow({"level": DUST_LABELS[level], **results})
+        for level, scores in zip(DUSTIFICATION_LEVELS, all_scores):
+            writer.writerow({"level": DUST_LABELS[level], **mean_scores(scores)})
 
     # Compare results
-    plot_dust_metrics(all_results, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
+    plot_dust_metrics(all_scores, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
     viz_predictions_dustifications(model, test_sets, device, "results/test_dust_compare.png")
 
-    return all_results
+    return all_scores
 
-ckpt = "models/best_seg_103026_mixedloss.pth"
-dust = 0
-DUSTIFICATION = True
+if __name__ == "__main__":
+    ckpt = "models/best_seg_103026_mixedloss.pth"
+    dust = 0
+    DUSTIFICATION = True
 
-if not DUSTIFICATION:
-    test_data(dust,ckpt)
-else:
-    test_data_dustifications(ckpt)
+    if not DUSTIFICATION:
+        test_data(dust,ckpt)
+    else:
+        test_data_dustifications(ckpt)
