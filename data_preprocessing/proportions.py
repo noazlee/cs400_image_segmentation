@@ -37,7 +37,7 @@ def math_proportions(counts):
 
 if __name__ == "__main__":
   counts = {0:0, 1:0, 2:0, 3:0, 255:0}
-  directory = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/labels/train"
+  directory = "data/non-dusted/train/labels"
   num_imgs_processed = 0
 
   # directory = "../dataset/test_images"
