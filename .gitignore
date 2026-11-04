@@ -4,6 +4,7 @@ Mars_dataset/
 ai4mars-dataset
 data/dusted
 data/non-dusted
+data/expert/
 DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
