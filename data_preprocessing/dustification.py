@@ -1,5 +1,20 @@
 '''
-File Created by Nora Wootten
+File Created by: Nora Wootten
+
+File created to add dust to the dataset ai4mars, which had labels and clear images but did not contain dust storm images.
+
+get_params():
+Written by me. Takes two parameters, an intefer i the dust level (0-3), and the seed to ensure randomness is the same for every group member.
+Get params returns a dictionary where each key is a parameter for the dustification script, and the parameters associated
+with intensity of dust storm are randomly distributed within a given range for 3 levels of dust intenstiy.
+
+apply_martian_dust_storm():
+Written by Gemini with prompt iteration by me and comments by me. Takes an image and adds a dust storm to it, using randomly
+generated parameters for all magic numbers returned by get_params().
+
+main():
+Written by me. Takes each image in the train and test images folders and applys the dust storm, saving them to new folders 
+train and test under a new directory "dusted".
 
 I wrote the get_params function, and the main function
 '''

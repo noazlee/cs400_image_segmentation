@@ -1,16 +1,21 @@
 '''
 File Created by: Nora Wootten
+
+File created to sort the ai4mars dataset images (from folder ai4mars-dataset-merged-0.6/msl/ncam/images/edr)
+and labels (from folder ai4mars-dataset-merged-0.6/msl/ncam/labels/train) into train and test sets for the training and
+testing of our models. The file checks to ensure that for each image there is a matching label, and if a matching label exists
+75% of images/labels are sorted into the train set while the other 25% are sorted into the test set.
+
+# IMPORTANT:
+# Before running create the following folder structure:
+
+# data/test/dusty_images,images,labels
+# data/train/images,labels
 '''
 
 
 
 import random, os, shutil
-
-# BEFORE RUNNING!!!!
-# Create the following folder structure:
-
-# data/test/dusty_images,images,labels
-# data/train/images,labels
 
 # Run from the folder cs400_image_segmentation
 if __name__ == "__main__":

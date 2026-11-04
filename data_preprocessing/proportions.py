@@ -1,5 +1,18 @@
 """
-File Create By: Nora Wootten
+File Created by: Nora Wootten
+
+Used to help code WIoU metric, prints the distribution of pixel classes in the dataset.
+
+get_proportions():
+Returns a dictionary with keys the class number and values the counts of how many pixels are defined as that class in the
+labels in the processes dataset.
+
+math_proportions():
+Returns a dictionary with keys the class number and values the percentage of pixels that are labeled as that class.
+
+main():
+Iterates through every label in the dataset and processes the pixel counts, occasionally printing the progress. Prints the
+final counts of each pixel and the percentage of that pixel in the dataset.
 """
 
 import os
@@ -37,7 +50,7 @@ def math_proportions(counts):
 
 if __name__ == "__main__":
   counts = {0:0, 1:0, 2:0, 3:0, 255:0}
-  directory = "../dataset/ai4mars-dataset-merged-0.6/msl/ncam/labels/train"
+  directory = "data/non-dusted/train/labels"
   num_imgs_processed = 0
 
   # directory = "../dataset/test_images"
