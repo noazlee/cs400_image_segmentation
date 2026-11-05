@@ -15,6 +15,7 @@ import csv
 import random
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import torch
 import matplotlib
 matplotlib.use("Agg")
@@ -32,8 +33,10 @@ import metrics
 
 # clean test set (images + labels). Dusted test images live in DUSTED_DIR/dustification_level_{0-3}/
 # as <name>_dusted{N}.JPG and reuse the clean labels
-CLEAN_DIR = REPO_ROOT / "data/non-dusted/test"
-DUSTED_DIR = REPO_ROOT / "data/dusted/test"
+EXPERT = True # test on the expert-labelled set in data/expert instead of the regular test set
+CLEAN_DIR = REPO_ROOT / ("data/expert/non-dusted" if EXPERT else "data/non-dusted/test")
+DUSTED_DIR = REPO_ROOT / ("data/expert/dusted" if EXPERT else "data/dusted/test")
+RESULTS_DIR = "results/expert" if EXPERT else "results"
 
 # level 0 = clean, levels 1-4 = dustification_level_0-3 (dust 0 is the lightest dust)
 DUST_LABELS = ["clean", "dust 0", "light dust", "medium dust", "heavy dust"]
@@ -276,6 +279,20 @@ def plot_dust_metrics(all_scores, out_path, title):
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
 
+def append_level_scores(test_set, scores, name, out_path):
+    # adds one row per image for this level to the long csv. Images line up with scores since the loader doesn't shuffle
+    with open(out_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        for i, label_path in enumerate(test_set.labels):
+            writer.writerow([label_path.stem, name, *[scores[key][i] for key in METRIC_NAMES]])
+
+def pivot_scores(long_path, wide_path):
+    # long csv (one row per image + level) -> wide csv (one row per image, {level}_{metric} columns like heavy_dust_iou)
+    wide = pd.read_csv(long_path).pivot(index="image", columns="level", values=list(METRIC_NAMES))
+    wide = wide[[(key, DUST_LABELS[level]) for level in DUSTIFICATION_LEVELS for key in METRIC_NAMES]]
+    wide.columns = [f"{name.replace(' ', '_')}_{key}" for key, name in wide.columns]
+    wide.to_csv(wide_path)
+
 # test function, resuse for non-dusty, dusty, more dusty, etc.
 def test_data(dust_level, ckpt_path):
 
@@ -297,8 +314,8 @@ def test_data(dust_level, ckpt_path):
     print_results(scores, DUST_LABELS[dust_level])
 
     # Visualize
-    os.makedirs("results", exist_ok=True)
-    out_path = f"results/test_dust{dust_level}.png"
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    out_path = f"{RESULTS_DIR}/test_dust{dust_level}.png"
     viz_predictions(model, test_dataset, device, out_path)
 
     return scores
@@ -310,7 +327,12 @@ def test_data_dustifications(ckpt_path):
     print("Loading model")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model(ckpt_path, device)
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # per-image scores are saved after each level
+    long_path = f"{RESULTS_DIR}/per_image_scores_long.csv"
+    with open(long_path, "w", newline="") as f:
+        csv.writer(f).writerow(["image", "level", *METRIC_NAMES])
 
     # run eval + the standard figure for every level
     test_sets = []
@@ -324,21 +346,25 @@ def test_data_dustifications(ckpt_path):
         print(f"Evaluating ({name})")
         scores = evaluate(model, make_loader(test_dataset), device)
         print_results(scores, name)
-        viz_predictions(model, test_dataset, device, f"results/test_dust{level}.png")
+        append_level_scores(test_dataset, scores, name, long_path)
+        viz_predictions(model, test_dataset, device, f"{RESULTS_DIR}/test_dust{level}.png")
 
         test_sets.append(test_dataset)
         all_scores.append(scores)
 
     # one row per level, mean of each metric
-    with open("results/dust_metrics.csv", "w", newline="") as f:
+    with open(f"{RESULTS_DIR}/dust_metrics.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["level", *METRIC_NAMES])
         writer.writeheader()
         for level, scores in zip(DUSTIFICATION_LEVELS, all_scores):
             writer.writerow({"level": DUST_LABELS[level], **mean_scores(scores)})
 
+    # one row per image, for making figures elsewhere
+    pivot_scores(long_path, f"{RESULTS_DIR}/per_image_scores.csv")
+
     # Compare results
-    plot_dust_metrics(all_scores, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
-    viz_predictions_dustifications(model, test_sets, device, "results/test_dust_compare.png")
+    plot_dust_metrics(all_scores, f"{RESULTS_DIR}/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).stem})")
+    viz_predictions_dustifications(model, test_sets, device, f"{RESULTS_DIR}/test_dust_compare.png")
 
     return all_scores
 
