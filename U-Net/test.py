@@ -163,10 +163,10 @@ def evaluate(model, loader, device, level, append=False):
                 if (ground_truth != 255).sum() == 0: # no labelled pixels (train.py skips these too)
                     continue
 
-                dice = metrics.dice(ground_truth, prediction, NUM_CLASSES)
+                dice = metrics.dice(ground_truth, prediction, NUM_CLASSES, ignore_id=0)
                 rand = metrics.rand_index(ground_truth, prediction)
-                iou = metrics.iou(ground_truth, prediction, NUM_CLASSES)
-                wiou = metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES)
+                iou = metrics.iou(ground_truth, prediction, NUM_CLASSES, ignore_id=0)
+                wiou = metrics.weighted_iou(ground_truth, prediction, NUM_CLASSES, ignore_id=0)
 
                 # one row per level, mean of each metric
                 writer.writerow({
