@@ -2,8 +2,7 @@
 ai4mars-dataset-merged-0.6/
 Mars_dataset/
 ai4mars-dataset
-data/dusted
-data/non-dusted
+data/
 DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
