@@ -8,7 +8,7 @@ def dice(ground_truth, prediction, num_classes=4):
         raise ValueError("Input images must have the same number of pixels.")
 
     # AI4Mars uses 255 for unlabeled / NULL pixels.
-    valid = (gt_pixels != 255) & (pred_pixels != 255)
+    valid = (gt_pixels != 255)
     gt_pixels = gt_pixels[valid]
     pred_pixels = pred_pixels[valid]
 
@@ -39,7 +39,7 @@ def iou(ground_truth, prediction, num_classes=4):
     if len(gt_pixels) != len(pred_pixels):
         raise ValueError("Input images must have the same number of pixels.")
 
-    valid = (gt_pixels != 255) & (pred_pixels != 255)
+    valid = (gt_pixels != 255)
     gt_pixels = gt_pixels[valid]
     pred_pixels = pred_pixels[valid]
 
@@ -58,6 +58,10 @@ def iou(ground_truth, prediction, num_classes=4):
 
     return float(np.mean(ious)) if ious else np.nan
 
+# Pixel proportions of the regular test set (data_preprocessing/proportions.py):
+# soil, bedrock, sand, big rock. Unlabelled pixels are left out.
+CLASS_PROPORTIONS = np.array([0.20658, 0.27078, 0.06877, 0.00465])
+
 def weighted_iou(ground_truth, prediction, num_classes=4):
     gt_pixels = np.asarray(ground_truth).flatten()
     pred_pixels = np.asarray(prediction).flatten()
@@ -65,38 +69,32 @@ def weighted_iou(ground_truth, prediction, num_classes=4):
     if len(gt_pixels) != len(pred_pixels):
         raise ValueError("Input images must have the same number of pixels.")
 
-    valid = (gt_pixels != 255) & (pred_pixels != 255)
+    valid = (gt_pixels != 255)
     gt_pixels = gt_pixels[valid]
     pred_pixels = pred_pixels[valid]
 
     ious = []
     weights = []
 
-    # Calculate IoU separately for every semantic class, then mean them.
+    # IoU for every semantic class, weighted by its inverse frequency across the dataset.
     for class_id in range(num_classes):
         gt_class = (gt_pixels == class_id)
         pred_class = (pred_pixels == class_id)
 
-        gt_count = np.sum(gt_class)
-        # skip classes absent from GT: inverse-frequency weight is undefined
-        if gt_count == 0:
-            continue
-
         intersection = np.sum(gt_class & pred_class)
         union = np.sum(gt_class | pred_class)
 
+        # If the class is absent from both masks, do not include it (same as iou()).
         if union > 0:
             ious.append(intersection / union)
-
-        weight = 1/np.sum(gt_class)
-        weights.append(weight)
+            weights.append(1 / CLASS_PROPORTIONS[class_id])
 
     if not ious:
         return np.nan
 
     ious = np.array(ious)
     weights = np.array(weights)
-    
+
     weights = weights / np.sum(weights)
 
     return float(np.sum(ious * weights))
@@ -109,7 +107,7 @@ def rand_index(ground_truth, prediction):
     if len(gt_pixels) != len(pred_pixels):
         raise ValueError("Input images must have the same number of pixels.")
 
-    valid = (gt_pixels != 255) & (pred_pixels != 255)
+    valid = (gt_pixels != 255)
     gt_pixels = gt_pixels[valid]
     pred_pixels = pred_pixels[valid]
 

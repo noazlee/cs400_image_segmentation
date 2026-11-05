@@ -88,7 +88,7 @@ def validate(model, loader):
         for ground_truth, prediction in zip(masks_np, preds_np):
             # ignore "none" ground-truth pixels so metrics match the 4-class setup
             ground_truth = ground_truth.copy()
-            ground_truth[ground_truth == NUM_CLASSES - 1] = 255
+            ground_truth[ground_truth == NUM_CLASSES - 1] = 255 # 4 -> 255 / Unet should do 0 -> 255
             dice_scores.append(metrics.dice(ground_truth, prediction, NUM_CLASSES-1))
             rand_scores.append(metrics.rand_index(ground_truth, prediction))
             iou_scores.append(metrics.iou(ground_truth, prediction, NUM_CLASSES-1))
@@ -144,29 +144,40 @@ val_loader = DataLoader(
 
 print(f"{len(train_dataset)} training images, \n{len(val_dataset)} validation images")
 
+# Resume settings: RESUME_RUN_ID = None to start a new run from the pretrained weights
+RESUME_RUN_ID = "mrzoxfa3"
+RESUME_CHECKPOINT = "models/best_seg_103026_mixedloss.pth" # best weights from the run (iter 5600)
+RESUME_ITER = 7000 # last step logged to wandb; steps must keep increasing, so continue from here
+
 # Load model
 print("Loading model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = build_segformer(num_classes=NUM_CLASSES)
 
-# Use pretrained model
 pretrained_path = "pretrained/segformer_b0_ade.pth"
-state_dict = torch.load(pretrained_path, map_location="cpu")
-missing, unexpected = model.load_state_dict(state_dict, strict=False) # strict=False: linear_pred is new because new classes
-print(f"missing keys: {missing}") # should only be decoder.linear_pred.weight/bias
-print(f"unexpected keys: {unexpected}") # should be []
+if RESUME_RUN_ID:
+    model.load_state_dict(torch.load(RESUME_CHECKPOINT, map_location="cpu"))
+    print(f"resuming from {RESUME_CHECKPOINT}")
+else:
+    # Use pretrained model
+    state_dict = torch.load(pretrained_path, map_location="cpu")
+    missing, unexpected = model.load_state_dict(state_dict, strict=False) # strict=False: linear_pred is new because new classes
+    print(f"missing keys: {missing}") # should only be decoder.linear_pred.weight/bias
+    print(f"unexpected keys: {unexpected}") # should be []
 
 model = model.to(device)
 print(f"Using {device}")
 
 # Optimizers, Loss
 print("Creating optimizer...")
-num_iters = 6000
+train_iters = 5000 # iterations to run now
+start_iter = RESUME_ITER if RESUME_RUN_ID else 0
+num_iters = start_iter + train_iters
 warmup_iters = 100
 lr = 6e-5
 min_lr_ratio = 0.2 # lr decays to lr * min_lr_ratio instead of 0
 log_every = 50 # print train loss
-val_every = 100 # check val loss, save if best
+val_every = 500 # run validation, save if best IoU
 save_dir = "models"
 os.makedirs(save_dir, exist_ok=True)
 
@@ -186,36 +197,43 @@ optimizer = torch.optim.AdamW(model.parameters(), lr = lr, weight_decay=0.01)
 def lr_lambda(step):
     if step < warmup_iters:
         return (step + 1) / warmup_iters
-    progress = (step - warmup_iters) / (num_iters - warmup_iters)
+    progress = (step - warmup_iters) / (train_iters - warmup_iters)
     return 1 - (1 - min_lr_ratio) * progress
 
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-wandb.init(
-    project=WANDB_PROJECT,
-    name=f"[SEGFORMER] Non-Dusty5: {lr} (Normal - No Distortion - Weighted Loss)",
-    entity=WANDB_ENTITY,
-    config={
-        "num_iters": num_iters,
-        "warmup_iters": warmup_iters,
-        "lr": lr,
-        "min_lr_ratio": min_lr_ratio,
-        "weight_decay": 0.01,
-        "batch_size": 8,
-        "img_size": 512,
-        "seed": 101926,
-        "pretrained_path": pretrained_path,
-    },
-)
+run_config = {
+    "num_iters": num_iters,
+    "warmup_iters": warmup_iters,
+    "lr": lr,
+    "min_lr_ratio": min_lr_ratio,
+    "weight_decay": 0.01,
+    "batch_size": 8,
+    "img_size": 512,
+    "seed": 101926,
+    "pretrained_path": pretrained_path,
+}
+
+if RESUME_RUN_ID:
+    wandb.init(project=WANDB_PROJECT, entity=WANDB_ENTITY, id=RESUME_RUN_ID, resume="must")
+    wandb.config.update({**run_config, "resume_checkpoint": RESUME_CHECKPOINT, "resume_iter": RESUME_ITER},
+                        allow_val_change=True)
+else:
+    wandb.init(
+        project=WANDB_PROJECT,
+        name=f"[SEGFORMER] Non-Dusty5: {lr} (Normal - No Distortion - Weighted Loss)",
+        entity=WANDB_ENTITY,
+        config=run_config,
+    )
 
 # Training loop
 print("Starting training...")
 model.train()
 data_iter = infinite(train_loader)
-best_val = float("inf")
+best_iou = float("-inf")
 running_loss = 0.0
 
-for i in range(num_iters):
+for i in range(start_iter, num_iters):
     images, masks = next(data_iter)
     images = images.to(device, non_blocking=True)
     masks = masks.to(device, non_blocking=True).long()
@@ -248,11 +266,11 @@ for i in range(num_iters):
         )
         wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=i + 1)
 
-        if val_metrics["loss"] < best_val:
-            best_val = val_metrics["loss"]
+        if val_metrics["iou"] > best_iou:
+            best_iou = val_metrics["iou"]
             torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
             print(f"saved new best to {save_dir}/best.pth")
-            wandb.run.summary["best_val_loss"] = best_val
+            wandb.run.summary["best_val_iou"] = best_iou
 
-print(f"Finished training. Best val loss {best_val:.4f}")
+print(f"Finished training. Best val IoU {best_iou:.4f}")
 wandb.finish()
