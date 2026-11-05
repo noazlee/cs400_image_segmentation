@@ -45,8 +45,10 @@ class AI4MarsDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        img = cv2.imread(self.pairs[idx][0], cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(self.pairs[idx][0], cv2.IMREAD_COLOR)
         label = cv2.imread(self.pairs[idx][1], cv2.IMREAD_GRAYSCALE)
+
+        name = self.pairs[idx][0].stem
 
         label = np.where(label == 255, 0, label + 1).astype(np.uint8)
 
@@ -58,8 +60,7 @@ class AI4MarsDataset(Dataset):
             out = self.val_transform(image=img, mask=label)
             img, label = out['image'], out['mask']
 
-        img = torch.from_numpy(img).unsqueeze(0)
-        img = v2.functional.to_dtype(img, dtype=torch.float32, scale=True)
+        img = torch.from_numpy(img).permute(2, 0, 1)
         label = torch.from_numpy(label).long()
 
-        return img, label
+        return img, label, name
