@@ -11,6 +11,7 @@ DRL_UMDSR/results/
 pretrained/
 models/
 wandb/
+U-Net/output*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
