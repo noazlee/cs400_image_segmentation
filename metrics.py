@@ -15,7 +15,7 @@ def dice(ground_truth, prediction, num_classes=4, ignore_id=None):
     dice_scores = []
 
     # Calculate Dice separately for every semantic class, then mean them.
-    for class_id in range(1, num_classes):
+    for class_id in range(num_classes):
         if ignore_id == class_id:
             continue
 
@@ -83,7 +83,7 @@ def weighted_iou(ground_truth, prediction, num_classes=4, ignore_id=None):
     weights = []
 
     # Calculate IoU separately for every semantic class, then mean them.
-    for class_id in range(1, num_classes):
+    for class_id in range(num_classes):
         if ignore_id == class_id:
             continue
 
