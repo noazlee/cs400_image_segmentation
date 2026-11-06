@@ -146,8 +146,8 @@ print(f"{len(train_dataset)} training images, \n{len(val_dataset)} validation im
 
 # Resume settings: RESUME_RUN_ID = None to start a new run from the pretrained weights
 RESUME_RUN_ID = "mrzoxfa3"
-RESUME_CHECKPOINT = "models/best_seg_103026_mixedloss.pth" # best weights from the run (iter 5600)
-RESUME_ITER = 7000 # last step logged to wandb; steps must keep increasing, so continue from here
+RESUME_CHECKPOINT = "models/best_checkpoint.pth" # best weights from the run (iter 5600)
+RESUME_ITER = 12000 # last step logged to wandb; steps must keep increasing, so continue from here
 
 # Load model
 print("Loading model...")
@@ -170,7 +170,7 @@ print(f"Using {device}")
 
 # Optimizers, Loss
 print("Creating optimizer...")
-train_iters = 5000 # iterations to run now
+train_iters = 8000 # iterations to run now
 start_iter = RESUME_ITER if RESUME_RUN_ID else 0
 num_iters = start_iter + train_iters
 warmup_iters = 100

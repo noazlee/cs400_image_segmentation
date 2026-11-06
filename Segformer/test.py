@@ -369,7 +369,7 @@ def test_data_dustifications(ckpt_path):
     return all_scores
 
 if __name__ == "__main__":
-    ckpt = "models/best_seg_103026_mixedloss.pth"
+    ckpt = "models/best_seg_11626.pth"
     dust = 0
     DUSTIFICATION = True
 
