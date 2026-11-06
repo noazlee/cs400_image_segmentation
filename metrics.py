@@ -1,6 +1,6 @@
 import numpy as np
 
-def dice(ground_truth, prediction, num_classes=4):
+def dice(ground_truth, prediction, num_classes=4, ignore_id=None):
     gt_pixels = np.asarray(ground_truth).flatten()
     pred_pixels = np.asarray(prediction).flatten()
 
@@ -16,6 +16,9 @@ def dice(ground_truth, prediction, num_classes=4):
 
     # Calculate Dice separately for every semantic class, then mean them.
     for class_id in range(num_classes):
+        if ignore_id == class_id:
+            continue
+
         gt_class = (gt_pixels == class_id)
         pred_class = (pred_pixels == class_id)
 
@@ -32,7 +35,7 @@ def dice(ground_truth, prediction, num_classes=4):
     return float(np.mean(dice_scores)) if dice_scores else np.nan
 
 
-def iou(ground_truth, prediction, num_classes=4):
+def iou(ground_truth, prediction, num_classes=4, ignore_id=None):
     gt_pixels = np.asarray(ground_truth).flatten()
     pred_pixels = np.asarray(prediction).flatten()
 
@@ -47,6 +50,9 @@ def iou(ground_truth, prediction, num_classes=4):
 
     # Calculate IoU separately for every semantic class, then mean them.
     for class_id in range(num_classes):
+        if ignore_id == class_id:
+            continue
+        
         gt_class = (gt_pixels == class_id)
         pred_class = (pred_pixels == class_id)
 
@@ -62,7 +68,7 @@ def iou(ground_truth, prediction, num_classes=4):
 # soil, bedrock, sand, big rock. Unlabelled pixels are left out.
 CLASS_PROPORTIONS = np.array([0.20658, 0.27078, 0.06877, 0.00465])
 
-def weighted_iou(ground_truth, prediction, num_classes=4):
+def weighted_iou(ground_truth, prediction, num_classes=4, ignore_id=None):
     gt_pixels = np.asarray(ground_truth).flatten()
     pred_pixels = np.asarray(prediction).flatten()
 
@@ -76,8 +82,11 @@ def weighted_iou(ground_truth, prediction, num_classes=4):
     ious = []
     weights = []
 
-    # IoU for every semantic class, weighted by its inverse frequency across the dataset.
+    # Calculate IoU separately for every semantic class, then mean them.
     for class_id in range(num_classes):
+        if ignore_id == class_id:
+            continue
+
         gt_class = (gt_pixels == class_id)
         pred_class = (pred_pixels == class_id)
 

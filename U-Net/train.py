@@ -45,7 +45,7 @@ std  = [0.229, 0.224, 0.225]
 # Transform for the training set
 train_transform = A.Compose([
     A.RandomScale(
-        scale_limit=(0.5, 2),
+        scale_limit=(-0.5, 2),
         interpolation=cv2.INTER_LINEAR,
         mask_interpolation=cv2.INTER_NEAREST,
         p=1.0
@@ -79,11 +79,11 @@ train_dataloader = DataLoader(train, batch_size=6, shuffle=True)
 val_dataloader = DataLoader(val, batch_size=1, shuffle=True)
 
 # Training configuration
-num_epochs = 10
+num_epochs = 30
 lr = 3e-4
 weight_decay = 1e-4
 log_every = 10
-save_dir = "output_version_4"
+save_dir = "weighted_loss_resnet34_null_loss"
 os.makedirs(save_dir, exist_ok=True)
 
 # Weights & Biases configuration
@@ -91,7 +91,7 @@ WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = "noahzlee7-carleton-college"
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss, ResNet34",
+    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss, ResNet34, null-loss",
     entity=WANDB_ENTITY,
     config={
         "num_epochs": num_epochs,
@@ -115,16 +115,14 @@ for _, label in train_dataloader:
     total_counts += counts
 
 counts = total_counts.float()
-median = counts[1:].median()
+median = counts.median()
 class_weights = torch.sqrt(median / counts)
-class_weights[0] = 0.0
 print(f"Class weights: {class_weights}")
 
 # Initialize the model, loss function, optimizer, and learning rate scheduler
 print("Initializing model, loss fn, optimizer...")
 model = UNet(resnet_encoder=True).to(device)
 loss_fn = nn.CrossEntropyLoss(
-    ignore_index=0,
     weight=class_weights.to(device)
 )
 opt = optim.AdamW(
@@ -179,7 +177,7 @@ def validate(model, dataloader):
             (image[:, :, 512:, 512:], label[:, 512:, 512:]),
         ]
 
-        # Run each 512x512 quadrant through SegFormer independently
+        # Run each 512x512 quadrant through U-Net independently
         for img_q, lbl_q in quads:
             #[B, 3, 512, 512]
             logits = model(img_q)
@@ -226,7 +224,7 @@ def validate(model, dataloader):
     }
 
 global_step = 1
-best_val_wiou = float("inf")
+best_val_wiou = float("-inf")
 
 print("Beginning training...")
 for epoch in range(num_epochs):
@@ -270,14 +268,15 @@ for epoch in range(num_epochs):
         f"\nval Dice {val_metrics['dice']:.4f}"
         f"\nval Rand Index {val_metrics['rand_index']:.4f}"
         f"\nval IoU {val_metrics['iou']:.4f}"
+        f"\nval Weighted IoU {val_metrics['weighted_iou']:.4f}"
     )
     wandb.log({f"val/{k}": v for k, v in val_metrics.items()}, step=global_step)
 
-    if val_metrics["weighted_iou"] < best_val_wiou:
+    if val_metrics["weighted_iou"] > best_val_wiou:
         best_val_wiou = val_metrics["weighted_iou"]
         torch.save(model.state_dict(), os.path.join(save_dir, "best.pth"))
         print(f"Saved new best model to {save_dir}/best.pth")
-        wandb.run.summary["best_val_loss"] = best_val_wiou
+        wandb.run.summary["best_weighted_iou"] = best_val_wiou
 
 wandb.finish()
 torch.save(model.state_dict(), f'{save_dir}/final.pth')
