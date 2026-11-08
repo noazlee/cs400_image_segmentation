@@ -59,4 +59,11 @@ if __name__ == "__main__":
     model = build_segformer()
     out = model(torch.randn(2, 3, 512, 512))
     print(out.shape) # expect [2, 4, 512, 512]
-    print(f"params: {sum(p.numel() for p in model.parameters()) / 1000000} M") # approx 3.7M for b0
+
+    # see encoder v decoder param sizes
+    enc_params = sum(p.numel() for p in model.encoder.parameters())
+    dec_params = sum(p.numel() for p in model.decoder.parameters())
+    total = enc_params + dec_params
+    print(f"encoder: {enc_params / 1e6:.3f} M ({enc_params / total:.1%})")
+    print(f"decoder: {dec_params / 1e6:.3f} M ({dec_params / total:.1%})")
+    print(f"total:   {total / 1e6:.3f} M") # approx 3.7M for b0

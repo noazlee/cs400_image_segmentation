@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 ROOT = Path(__file__).resolve().parent
-SEGFORMER_CSV = ROOT / "Segformer" / "results" / "weighted_iou.csv"
+SEGFORMER_CSV = ROOT / "Segformer" / "results" / "expert" / "per_image_scores_long.csv"
 UNET_CSV = ROOT / "U-Net" / "results" / "weighted_iou.csv"
 OUTPUT_PATH = ROOT / "weighted_iou_comparison.png"
 
