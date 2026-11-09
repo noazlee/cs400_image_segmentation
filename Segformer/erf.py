@@ -35,10 +35,10 @@ def get_input_grad(model, samples, stage):
     # Input: samples [B, 3, 512, 512] with requires_grad
     # Output: [512, 512] contribution of each input pixel to the stage's center feature
     features = model.encoder(samples)[stage] # [B, C, h, w]
-    h, w = features.shape[-2:]
+    h, w = features.shape[-2:] # keep the cell in the middle - squish to one number over all channels
     central_point = torch.relu(features[:, :, h // 2, w // 2]).sum()
-    grad = torch.autograd.grad(central_point, samples)[0] # sets grad to 1
-    grad = torch.nn.functional.relu(grad)
+    grad = torch.autograd.grad(central_point, samples)[0] # d(scalar)/d(every input pixel) - how much each input affected that score
+    grad = torch.nn.functional.relu(grad) # only keep pixels that push center feature up
     aggregated = grad.sum((0, 1)) # sum over quadrants + RGB channels -> [512, 512]
     grad_map = aggregated.cpu().numpy()
     return grad_map
@@ -53,7 +53,7 @@ def area_ratio(data, thresh):
         if area / total > thresh:
             side = 2 * i + 1
             return side, side * side / (h * w)
-    return h, 1.0    
+    return h, 1.0
 
 
 if __name__ == "__main__":
