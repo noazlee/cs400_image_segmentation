@@ -132,7 +132,7 @@ DEFAULT_PARAMS = {
     "final_contrast_factor": 0.25,  # Reduces and smooths final contrast by 25%
 }
 """
-def apply_martian_dust_storm(image_path, params, seed):
+def apply_martian_dust_storm(image, params, seed):
     if seed is not None:
         np.random.seed(seed)
         random.seed(seed)
@@ -153,7 +153,8 @@ def apply_martian_dust_storm(image_path, params, seed):
     final_contrast_factor = params['final_contrast_factor']
 
     # 1. Load Image and convert to float array
-    img = Image.open(image_path).convert("RGB")
+    img = image if isinstance(image, Image.Image) else Image.open(image)
+    img = img.convert("RGB")
     width, height = img.size
     img_np = np.array(img, dtype=np.float32) / 255.0        # Scales image down to a normalized floating point array with values in range [0.0, 1.0]
 

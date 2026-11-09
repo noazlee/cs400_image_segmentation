@@ -14,6 +14,10 @@ import torch
 from PIL import Image, ImageEnhance
 from torch.utils.data import Dataset
 
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent / "data_preprocessing"))
+from dustification import get_params, apply_martian_dust_storm
+
 # ImageNet-1k mean, std stats - pretrained encoder expects these
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -59,20 +63,13 @@ class MarsDataset(Dataset):
 
         return padded_img, padded_mask
 
-    #The Photometric Distortion is in a separate function because it's not mentioned
-    # in the SegFormer paper, like the other augmentations
-    def _distort(self, img):
-        #50% chance to apply a small increase in brightness, contrast, and/or saturation.
-        if random.random() < 0.5:
-            img = ImageEnhance.Brightness(img).enhance(random.uniform(0.8, 1.2))
-        
-        if random.random() < 0.5:
-            img = ImageEnhance.Contrast(img).enhance(random.uniform(0.8, 1.2))
-
-        if random.random() < 0.5:
-            img = ImageEnhance.Color(img).enhance(random.uniform(0.8, 1.2))
-
-        return img
+    def _dust(self, img):
+        # 25% clean, 25% light, 25% medium, 25% heavy
+        level = random.randint(0, 3)
+        if level == 0:
+            return img
+        params = get_params(level, seed=None)
+        return apply_martian_dust_storm(img, params, seed=None)
 
     def _training_transform(self, img, mask):
 
@@ -99,11 +96,7 @@ class MarsDataset(Dataset):
         crop_box = (left, top, left + self.size, top + self.size)
         img = img.crop(crop_box)
         mask = mask.crop(crop_box)
-        
-        #Optional brightness/contrast/saturation changes
-        if self.distortion:
-            img = self._distort(img)
-        
+
         return img, mask
 
     def __getitem__(self, idx):
@@ -112,6 +105,8 @@ class MarsDataset(Dataset):
         mask = mask.point(lambda v: self.unknown_class if v == 255 else v)
 
         if self.training:
+            if self.distortion:
+                img = self._dust(img)
             img, mask = self._training_transform(img, mask)
 
         #if the image is not being used for training, we split it into four non-overlapping 

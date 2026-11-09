@@ -9,14 +9,15 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
-ROOT = Path(__file__).resolve().parent
-SEGFORMER_CSV = ROOT / "Segformer" / "results" / "expert" / "per_image_scores_long.csv"
-UNET_CSV = ROOT / "U-Net" / "results" / "weighted_iou.csv"
-OUTPUT_PATH = ROOT / "weighted_iou_comparison.png"
+folder = Path(__file__).resolve().parent
+SEGFORMER_CSV = folder / "Seg_metrics_collapsed.csv"
+UNET_CSV = folder / "Unet_metrics_collapsed.csv"
+OUTPUT_PATH = folder / "weighted_iou_comparison.png"
 
-COLUMNS = ["original", "dust1", "dust2", "dust3"]
-DISPLAY_LABELS = ["Original", "Dust Level 1", "Dust Level 2", "Dust Level 3"]
+COLUMNS = ["weighted_iou_clean", "weighted_iou_light", "weighted_iou_medium", "weighted_iou_heavy"]
+DISPLAY_LABELS = ["Original", "Light Dust", "Medium Dust", "Heavy Dust"]
 
 def load_weighted_iou_csv(path):
     """
@@ -59,7 +60,7 @@ def plot_weighted_iou(segformer_data, unet_data):
     x = np.arange(1, 5)
 
     # Move SegFormer slightly left and U-Net slightly right
-    offset = 0.17
+    offset = 0.18
     segformer_positions = x - offset
     unet_positions = x + offset
 
@@ -88,7 +89,13 @@ def plot_weighted_iou(segformer_data, unet_data):
             "marker": "o",
             "markersize": 3,
             "alpha": 0.5
-        }
+        },
+        showmeans=True,
+        meanprops={
+            "marker": "D", 
+            "markerfacecolor": "darkred",
+            "markeredgecolor": "black", 
+            "markersize": 6}
     )
 
     # U-Net
@@ -104,6 +111,13 @@ def plot_weighted_iou(segformer_data, unet_data):
             "marker": "o",
             "markersize": 3,
             "alpha": 0.5
+        },
+        showmeans=True,
+        meanprops={
+            "marker": "D", 
+            "markerfacecolor": "darkred",
+            "markeredgecolor": "black", 
+            "markersize": 6
         }
     )
 
@@ -119,10 +133,10 @@ def plot_weighted_iou(segformer_data, unet_data):
     ax.set_xticks(x)
     ax.set_xticklabels(DISPLAY_LABELS)
 
-    ax.set_xlabel("Dustification Level")
-    ax.set_ylabel("Weighted IoU")
+    ax.set_xlabel("Dustification Level", fontweight="bold")
+    ax.set_ylabel("Weighted IoU", fontweight="bold")
 
-    ax.set_ylim(0, 1)
+    ax.set_ylim(-0.02, 1.02)
 
     ax.set_title("SegFormer vs. U-Net Performance Across Dustification Levels")
 
@@ -133,16 +147,17 @@ def plot_weighted_iou(segformer_data, unet_data):
     # Legend
     legend = [
         Patch(facecolor="C0", alpha=0.65, label="SegFormer"),
-        Patch(facecolor="C1", alpha=0.65, label="U-Net")
+        Patch(facecolor="C1", alpha=0.65, label="U-Net"),
+        Line2D([0], [0], marker="D", color="none",
+           markerfacecolor="darkred", markeredgecolor="black",
+           markersize=6, label="Mean")
     ]
 
-    ax.legend(handles=legend)
+    ax.legend(handles=legend, loc='upper right')
 
     plt.tight_layout()
 
     plt.savefig(OUTPUT_PATH, dpi=200, bbox_inches="tight")
-
-    plt.show()
 
 
 def main():
