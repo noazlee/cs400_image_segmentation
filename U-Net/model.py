@@ -172,3 +172,15 @@ if __name__ == "__main__":
     print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1000000} M")
     output = model(test)
     print(f"Output: {output.shape}")
+    model.eval()
+    torch.onnx.export(
+        model,
+        (test,),
+        "onnx/resnet34-unet.onnx",
+        export_params=True,
+        opset_version=17,
+        do_constant_folding=True,
+        input_names=["input"],
+        output_names=["output"],
+        dynamo=False
+    )

@@ -8,13 +8,15 @@ data/expert/
 DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
-*.csv
 
 # Models
 pretrained/
 models/
 wandb/
 U-Net/output*
+ResNet/
+resnet34-unet.onnx
+resnet34-unet.onnx.data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

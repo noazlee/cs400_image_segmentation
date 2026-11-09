@@ -8,7 +8,7 @@ from flask import Flask, abort, redirect, render_template, request, send_file, s
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from dustification import DEFAULT_PARAMS, apply_martian_dust_storm
+from data_preprocessing.dustification import DEFAULT_PARAMS, apply_martian_dust_storm
 
 EXAMPLES = os.path.join(ROOT, "dust_tuner", "examples")
 DB_PATH = os.path.join(ROOT, "dust_tuner", "submissions.db")

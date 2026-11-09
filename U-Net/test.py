@@ -221,7 +221,7 @@ def _finish_grid(fig, axes, titles, out_path):
 
 def _predict_sample(model, test_set, idx, device):
     # returns (display image, label with unlabelled masked out, prediction) for one test image
-    img, mask = test_set[idx] # img: [3, 1024, 1024], mask: [1024, 1024]
+    img, mask, _ = test_set[idx] # img: [3, 1024, 1024], mask: [1024, 1024]
     pred = predict(model, img[None].to(device))[0].cpu().numpy()
     return _to_display(img), np.ma.masked_equal(mask.numpy(), 0), pred
 
@@ -328,7 +328,7 @@ def test_data(dust_level, ckpt_path):
 
     # Visualize
     os.makedirs("results", exist_ok=True)
-    out_path = f"results/test_dust{dust_level}.png"
+    out_path = f"results-2/test_dust{dust_level}.png"
     viz_predictions(model, test_dataset, device, out_path)
 
     return scores
@@ -354,7 +354,7 @@ def test_data_dustifications(ckpt_path):
         print(f"Evaluating ({name})")
         scores = evaluate(model, make_loader(test_dataset), device, level, append=True)
         print_results(scores, name)
-        viz_predictions(model, test_dataset, device, f"results/test_dust{level}.png")
+        viz_predictions(model, test_dataset, device, f"results-2/test_dust{level}.png")
 
         test_sets.append(test_dataset)
         all_scores.append(scores)
@@ -367,13 +367,13 @@ def test_data_dustifications(ckpt_path):
             writer.writerow({"level": DUST_LABELS[level], **mean_scores(scores)})
 
     # Compare results
-    plot_dust_metrics(all_scores, "results/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).parent.name})")
-    viz_predictions_dustifications(model, test_sets, device, "results/test_dust_compare.png")
+    plot_dust_metrics(all_scores, "results-2/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).parent.name})")
+    viz_predictions_dustifications(model, test_sets, device, "results-2/test_dust_compare.png")
 
     return all_scores
 
 if __name__ == "__main__":
-    ckpt = "weighted_loss_resnet34_null_loss/best.pth"
+    ckpt = "output_weighted_loss_resnet34_null_loss/best.pth"
     dust = 0
     DUSTIFICATION = True
 

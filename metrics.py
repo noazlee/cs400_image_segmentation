@@ -96,7 +96,7 @@ def weighted_iou(ground_truth, prediction, num_classes=4, ignore_id=None):
         # If the class is absent from both masks, do not include it (same as iou()).
         if union > 0:
             ious.append(intersection / union)
-            weights.append(1 / CLASS_PROPORTIONS[class_id])
+            weights.append(1 / CLASS_PROPORTIONS[class_id - 1])
 
     if not ious:
         return np.nan

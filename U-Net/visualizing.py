@@ -28,7 +28,7 @@ from data_preprocessing.dustification import get_params, apply_martian_dust_stor
 
 # Set the paths to the test image and model for easy variable access
 IMAGE_PATH = "../data/non-dusted/test/images/NLA_401855249EDR_F0042778NCAM00434M1.JPG"
-MODEL_PATH = "output_version_4/best.pth"
+MODEL_PATH = "output_weighted_loss_resnet34_null_loss/best.pth"
 
 # Set image size, number of classes for easy variables access
 IMAGE_SIZE = 512
