@@ -118,7 +118,7 @@ train_split, val_split = random_split(base_dataset, [0.8, 0.2],
         generator=torch.Generator().manual_seed(101926))
 
 train_dataset = Subset(
-        MarsDataset(data_path, size=512,training=True, distortion=False),
+        MarsDataset(data_path, size=512,training=True, distortion=True),
         train_split.indices)
 
 val_dataset = Subset(
@@ -129,9 +129,10 @@ train_loader = DataLoader(
     train_dataset,
     batch_size=8,
     shuffle=True,
-    num_workers=4,
+    num_workers=8,
     pin_memory=True,
     drop_last=True,
+    persistent_workers=True, # keep workers alive between loader restarts in infinite()
 )
 
 val_loader = DataLoader(
@@ -145,9 +146,9 @@ val_loader = DataLoader(
 print(f"{len(train_dataset)} training images, \n{len(val_dataset)} validation images")
 
 # Resume settings: RESUME_RUN_ID = None to start a new run from the pretrained weights
-RESUME_RUN_ID = "mrzoxfa3"
-RESUME_CHECKPOINT = "models/best_checkpoint.pth" # best weights from the run (iter 5600)
-RESUME_ITER = 12000 # last step logged to wandb; steps must keep increasing, so continue from here
+RESUME_RUN_ID = None
+RESUME_CHECKPOINT = "" # best weights from the run (iter 5600)
+RESUME_ITER = 0 # last step logged to wandb; steps must keep increasing, so continue from here
 
 # Load model
 print("Loading model...")
@@ -170,14 +171,14 @@ print(f"Using {device}")
 
 # Optimizers, Loss
 print("Creating optimizer...")
-train_iters = 8000 # iterations to run now
+train_iters = 12000 # iterations to run now
 start_iter = RESUME_ITER if RESUME_RUN_ID else 0
 num_iters = start_iter + train_iters
 warmup_iters = 100
 lr = 6e-5
 min_lr_ratio = 0.2 # lr decays to lr * min_lr_ratio instead of 0
 log_every = 50 # print train loss
-val_every = 500 # run validation, save if best IoU
+val_every = 250 # run validation, save if best IoU
 save_dir = "models"
 os.makedirs(save_dir, exist_ok=True)
 
@@ -221,7 +222,7 @@ if RESUME_RUN_ID:
 else:
     wandb.init(
         project=WANDB_PROJECT,
-        name=f"[SEGFORMER] Non-Dusty5: {lr} (Normal - No Distortion - Weighted Loss)",
+        name=f"[SEGFORMER] Dusty: {lr} (Normal - Weighted Loss)",
         entity=WANDB_ENTITY,
         config=run_config,
     )
