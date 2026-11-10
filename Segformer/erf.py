@@ -25,9 +25,9 @@ from model import build_segformer
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLEAN_DIR = REPO_ROOT / "data/non-dusted/test"
 
-CKPT = "models/best_seg_103026_mixedloss.pth"
+CKPT = "models/best_seg_111026_dust.pth"
 NUM_CLASSES = 5
-STAGE = 0 # encoder stage 0-3 (c1-c4); 3 is the deepest, 1/32 resolution
+STAGE = 3 # encoder stage 0-3 (c1-c4); 3 is the deepest, 1/32 resolution
 NUM_IMAGES = 20 # each image gives 4 quadrants -> 80 samples
 
 

@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from dustification import get_params, apply_martian_dust_storm
 
 IMAGE_PATH = "../data/non-dusted/test/images/NLA_401855249EDR_F0042778NCAM00434M1.JPG"
-MODEL_PATH = "models/best_seg_102526.pth"
+MODEL_PATH = "models/best_seg_111026_dust.pth"
 
 IMAGE_SIZE = 512
 NUM_CLASSES = 5
