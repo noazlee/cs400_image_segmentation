@@ -8,6 +8,7 @@ data/expert/
 DRL_UMDSR/checkpoints/
 DRL_UMDSR/results/
 *.out
+*.csv
 
 # Models
 pretrained/
