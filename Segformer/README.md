@@ -50,13 +50,17 @@ From these vectors, we use a neural network from 32 -> 32 to generate 16384 Quer
 * x_out = x + fc2( GELU( DWConv( fc1( LN(x) ) ) ) )
 * (16384, 32) -> fc1 -> (16384, 128) -> DWConv 3×3 -> (16384, 128) -> GELU -> fc2 -> (16384, 32)
 
-Implemented in `MixFFN`, the layer takes in the attended patches, expands it to a wider feature space in FC1, reshapes the patches to FM form to use a depth-wise convolution (DWConv) to allow for local context and share position information, reorders to patch form, applies GELU for non-linearity and then uses FC2 to bring the patches back to the original dimension.
+Implemented in `MixFFN`, the layer takes in the attended patches, expands it to a wider feature space in FC1, reshapes the patches to FM form to use a depth-wise convolution (`DWConv`) to allow for local context and share position information, reorders to patch form, applies GELU for non-linearity and then uses FC2 to bring the patches back to the original dimension.
 
 ### decoder.py
 
 ![Segformer decoder diagram](figures/seg_decoder.png)
 
-
+The decoder is implemented in decoder.py as `MLPDecoder`. The decoder takes in a set of 4 features and does the following operations:
+1. Unify channel dims through feeding each FM into an MLP 
+2. Upsamples the H, W dimensions to match $H/4\times W/4$ though billinear interpolation and concatenates the FMs together
+3. Fuses the FMs together using a $1\times 1$ convolution (4 -> 1).
+4. Generates a final prediction with a $1\times 1$ convolution ($C \to 5$)
 
 ## Training/Testing
 
