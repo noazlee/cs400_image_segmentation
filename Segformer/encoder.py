@@ -134,9 +134,9 @@ class EffAttention(nn.Module):
             k = k.reshape(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2) # [B, heads, 256, d]
             v = v.reshape(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
 
-        e = (q @ k.transpose(-2, -1)) * self.scale 
+        e = (q @ k.transpose(-2, -1)) * self.scale
         a = e.softmax(dim=-1)
-        a = self.attn_drop(a) 
+        a = self.attn_drop(a)
 
         o = (a @ v).transpose(1, 2).reshape(B, N, C)
         o = self.proj(o)
