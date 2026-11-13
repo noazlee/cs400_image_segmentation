@@ -33,7 +33,7 @@ import metrics
 
 # clean test set (images + labels). Dusted test images live in DUSTED_DIR/dustification_level_{0-3}/
 # as <name>_dusted{N}.JPG and reuse the clean labels
-EXPERT = True # test on the expert-labelled set in data/expert instead of the regular test set
+EXPERT = False # test on the expert-labelled set in data/expert instead of the regular test set
 CLEAN_DIR = REPO_ROOT / ("data/expert/non-dusted" if EXPERT else "data/non-dusted/test")
 DUSTED_DIR = REPO_ROOT / ("data/expert/dusted" if EXPERT else "data/dusted/test")
 RESULTS_DIR = "results/expert" if EXPERT else "results"

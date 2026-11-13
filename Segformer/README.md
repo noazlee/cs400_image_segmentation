@@ -83,9 +83,31 @@ For each HF key:
 
 Only run once after downloading pretrained model.
 
+### dataset
+
+The AI4MARS dataset we used is in `ai4mars-dataset-mergedi0.6/msl/ncam/` which is the grayscale mars images because it appeared to have better labels than the other datasets. We used `data_sort.py` to create a train/test split in order to create a new directory at root called `data/` which has directories `data/non-dusted/` which has a `train/` and `test/` directory respectively. We then run the `dustification.py` script to create a parallel dataset `data/dusted/` which also has a `train/` and `test/` directory (although we really only use the test directory here).
+
+We also have an `expert/` dataset created from the `expert_data_sort.py` file in `data_preprocessing` also taken from ai4mars but we had mixed results testing on there because of how different the labels were from the other dataset.
+
+![How data directory looks like on my machine](figures/data_layout.png)
+
+Once you have the `data/` directory formatted this way, you are ready to train and test Segformer.
+
 ### train.py
 
+train.py is how you train either a pretrained segformer model, or continue training an existing segformer model. all paremeters for where you pull the pretrained segformer model or where to find the existing model is set in the script itself and then ran with `python3 train.py` or `nohup python3 train.py &` -> this will output the log of the training in nohup.out, and the best model into `models/`
+
+![Segformer training loop](figures/seg_training.png)
+
+Connect train.py to your wandb account to track model metrics in real time and replace the `wandb.init()` function with your wandb project paramaters. training segformer took about 10 hours for 12000 batches with a large bottleneck being the validation metrics (presumably RAND index).
+
 ### test.py
+
+test.py is how you test a trained segformer model. all parameters for which dataset to use - expert or normal - whether or not we are testing on all dust levels, and which model to load is changed in the script itself and ran with `python3 test.py` or `nohup python3 test.py &` which outputs a log of testing and puts all figures/csvs in `results/`.
+
+![Segformer testing loop](figures/seg_test.png)
+
+In evaluation (testing or validation), the dataset has a new paramater passed where `training=False`. This makes it so our images are not augmented when being sampled and we split our image into 4 quadrants. Then in evaluation, the model predicts on the 4 quadrants separately, and are then stacked back together after the forward pass. The metrics, implemented in root `metrics.py` are then run on the recombined predictions and the original ground truth. This repeats over the entire test set.
 
 ### visualization.py
 
