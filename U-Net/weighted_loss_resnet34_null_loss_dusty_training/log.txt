@@ -1,0 +1,29 @@
+python3 erf.py
+stage 1 ERF over 20 images
+  20% of contribution: 9x9 square, 0.000 of the image
+  30% of contribution: 13x13 square, 0.001 of the image
+  50% of contribution: 17x17 square, 0.001 of the image
+  99% of contribution: 43x43 square, 0.007 of the image
+saved results-2/erf_stage1.png
+(cs400) kozakw@olin302-51:~/cs400/cs400_image_segmentation/U-Net$ python3 erf.py
+stage 2 ERF over 20 images
+  20% of contribution: 21x21 square, 0.002 of the image
+  30% of contribution: 27x27 square, 0.003 of the image
+  50% of contribution: 37x37 square, 0.005 of the image
+  99% of contribution: 99x99 square, 0.037 of the image
+saved results-2/erf_stage2.png
+(cs400) kozakw@olin302-51:~/cs400/cs400_image_segmentation/U-Net$ python3 erf.py
+stage 3 ERF over 20 images
+  20% of contribution: 35x35 square, 0.005 of the image
+  30% of contribution: 47x47 square, 0.008 of the image
+  50% of contribution: 67x67 square, 0.017 of the image
+  99% of contribution: 247x247 square, 0.233 of the image
+saved results-2/erf_stage3.png
+(cs400) kozakw@olin302-51:~/cs400/cs400_image_segmentation/U-Net$ python3 erf.py
+stage 4 ERF over 20 images
+  20% of contribution: 99x99 square, 0.037 of the image
+  30% of contribution: 127x127 square, 0.062 of the image
+  50% of contribution: 177x177 square, 0.120 of the image
+  99% of contribution: 451x451 square, 0.776 of the image
+saved results-2/erf_stage4.png
+(cs400) kozakw@olin302-51:~/cs400/cs400_image_segmentation/U-Net$ 

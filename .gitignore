@@ -14,10 +14,10 @@ DRL_UMDSR/results/
 pretrained/
 models/
 wandb/
-U-Net/output*
 ResNet/
 resnet34-unet.onnx
 resnet34-unet.onnx.data
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

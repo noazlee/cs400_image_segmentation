@@ -25,7 +25,7 @@ from model import UNet
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLEAN_DIR = REPO_ROOT / "data/non-dusted/test"
 
-CKPT = "models/best_seg_111026_dust.pth" # replace with UNet model
+CKPT = "weighted_loss_resnet34_null_loss_dusty_training/best.pth" # replace with UNet model
 STAGE = 3 # encoder stage 0-3 (c1-c4); 3 is the deepest, 1/32 resolution
 NUM_IMAGES = 20 # each image gives 4 quadrants -> 80 samples
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     for idx in range(NUM_IMAGES):
         img, _ = test_set[idx] # [3, 1024, 1024]
         h, w = img.shape[-2] // 2, img.shape[-1] // 2
-        img = torch.stack([img[: :h, :w], img[:, :h, w:],
+        img = torch.stack([img[:, :h, :w], img[:, :h, w:],
                            img[:, h:, :w], img[:, h:, w:]]) # 4 quadrants [4, 3, 512, 512]
         samples = img.to(device).requires_grad_(True)
         grad_map = get_input_grad(model, samples, STAGE)

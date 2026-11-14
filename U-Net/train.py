@@ -83,7 +83,7 @@ num_epochs = 30
 lr = 3e-4
 weight_decay = 1e-4
 log_every = 10
-save_dir = "weighted_loss_resnet34_null_loss"
+save_dir = "weighted_loss_resnet34_null_loss_dusty_training"
 os.makedirs(save_dir, exist_ok=True)
 
 # Weights & Biases configuration
@@ -91,7 +91,7 @@ WANDB_PROJECT = "mars-model-training"
 WANDB_ENTITY = "noahzlee7-carleton-college"
 wandb.init(
     project=WANDB_PROJECT,
-    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss, ResNet34, null-loss",
+    name=f"[U-Net] Non-Dusty: {lr}, weighted-loss, ResNet34, null-loss, dust augmentation",
     entity=WANDB_ENTITY,
     config={
         "num_epochs": num_epochs,
@@ -109,14 +109,15 @@ print("Calculating relative class weights...")
 num_classes = 5
 total_counts = torch.zeros(num_classes, dtype=torch.long)
 
-for _, label in train_dataloader:
-    label = label.long()
-    counts = torch.bincount(label.flatten(), minlength=num_classes)
-    total_counts += counts
-
-counts = total_counts.float()
-median = counts.median()
-class_weights = torch.sqrt(median / counts)
+#for _, label, _ in train_dataloader:
+#    label = label.long()
+#    counts = torch.bincount(label.flatten(), minlength=num_classes)
+#    total_counts += counts
+#
+#counts = total_counts.float()
+#median = counts.median()
+#class_weights = torch.sqrt(median / counts)
+class_weights = torch.tensor([0.7865, 1.0000, 0.8552, 1.7806, 6.0905])
 print(f"Class weights: {class_weights}")
 
 # Initialize the model, loss function, optimizer, and learning rate scheduler

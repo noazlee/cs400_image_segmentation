@@ -143,13 +143,21 @@ def evaluate(model, loader, device, level, append=False):
     iou_scores = []
     weighted_iou_scores = []
 
-    with open("results-2/dust_metrics.csv", "a" if append else "w", newline="") as f:
+    with open("results-3/dust_metrics.csv", "a" if append else "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["image", "level", *METRIC_NAMES])
-        writer.writeheader()
+        
+        if not append:
+            writer.writeheader()
 
-        for images, masks, names in loader:
+        names_all = [img.stem for img, _ in loader.dataset.pairs]
+        offset = 0
+
+        for images, masks in loader:
             #images: [B, 3, 1024, 1024]
             #masks:  [B, 1024, 1024]
+            names = names_all[offset:offset + len(images)]
+            offset += len(images)
+
             images = images.to(device, non_blocking=True)
 
             # [B, 1024, 1024]
@@ -221,7 +229,7 @@ def _finish_grid(fig, axes, titles, out_path):
 
 def _predict_sample(model, test_set, idx, device):
     # returns (display image, label with unlabelled masked out, prediction) for one test image
-    img, mask, _ = test_set[idx] # img: [3, 1024, 1024], mask: [1024, 1024]
+    img, mask = test_set[idx] # img: [3, 1024, 1024], mask: [1024, 1024]
     pred = predict(model, img[None].to(device))[0].cpu().numpy()
     return _to_display(img), np.ma.masked_equal(mask.numpy(), 0), pred
 
@@ -328,7 +336,7 @@ def test_data(dust_level, ckpt_path):
 
     # Visualize
     os.makedirs("results", exist_ok=True)
-    out_path = f"results-2/test_dust{dust_level}.png"
+    out_path = f"results-3/test_dust{dust_level}.png"
     viz_predictions(model, test_dataset, device, out_path)
 
     return scores
@@ -340,7 +348,7 @@ def test_data_dustifications(ckpt_path):
     print("Loading model")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model(ckpt_path, device)
-    os.makedirs("results-2", exist_ok=True)
+    os.makedirs("results-3", exist_ok=True)
 
     # run eval + the standard figure for every level
     test_sets = []
@@ -352,28 +360,28 @@ def test_data_dustifications(ckpt_path):
         print(f"{len(test_dataset)} testing images")
 
         print(f"Evaluating ({name})")
-        scores = evaluate(model, make_loader(test_dataset), device, level, append=True)
+        scores = evaluate(model, make_loader(test_dataset), device, level, append=(level != DUSTIFICATION_LEVELS[0])) # so we dont make a header over and over again
         print_results(scores, name)
-        viz_predictions(model, test_dataset, device, f"results-2/test_dust{level}.png")
+        viz_predictions(model, test_dataset, device, f"results-3/test_dust{level}.png")
 
         test_sets.append(test_dataset)
         all_scores.append(scores)
 
     # one row per level, mean of each metric
-    with open("results-2/summary_metrics.csv", "w", newline="") as f:
+    with open("results-3/summary_metrics.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["level", *METRIC_NAMES])
         writer.writeheader()
         for level, scores in zip(DUSTIFICATION_LEVELS, all_scores):
             writer.writerow({"level": DUST_LABELS[level], **mean_scores(scores)})
 
     # Compare results
-    plot_dust_metrics(all_scores, "results-2/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).parent.name})")
-    viz_predictions_dustifications(model, test_sets, device, "results-2/test_dust_compare.png")
+    plot_dust_metrics(all_scores, "results-3/dust_metrics.png", f"Test metrics by dust level ({Path(ckpt_path).parent.name})")
+    viz_predictions_dustifications(model, test_sets, device, "results-3/test_dust_compare.png")
 
     return all_scores
 
 if __name__ == "__main__":
-    ckpt = "output_weighted_loss_resnet34_null_loss/best.pth"
+    ckpt = "weighted_loss_resnet34_null_loss_dusty_training/best.pth"
     dust = 0
     DUSTIFICATION = True
 
