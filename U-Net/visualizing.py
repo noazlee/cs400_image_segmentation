@@ -28,7 +28,7 @@ from data_preprocessing.dustification import get_params, apply_martian_dust_stor
 
 # Set the paths to the test image and model for easy variable access
 IMAGE_PATH = "../data/non-dusted/test/images/NLA_401855249EDR_F0042778NCAM00434M1.JPG"
-MODEL_PATH = "output_weighted_loss_resnet34_null_loss/best.pth"
+MODEL_PATH = "weighted_loss_resnet34_null_loss_dusty_training/best.pth"
 
 # Set image size, number of classes for easy variables access
 IMAGE_SIZE = 512
@@ -270,11 +270,10 @@ def main():
 
     # Create the set of images to visualize feature maps
     visualize_random_channels(original, feature_maps, VISUALIZING_LAYERS, selected_channels,
-                              "Clean Image", "viz/unet_clean_channels.png")
+                              "Clean Image", "viz/unet_(dust)_clean_channels.png")
     visualize_random_channels(dustified_image, dusty_feature_maps, VISUALIZING_LAYERS,
                               selected_channels, "Dustified Image",
-                              "viz/unet_dusty_channels.png")
-
+                              "viz/unet_(dust)_dusty_channels.png")
 
 if __name__ == "__main__":
     main()
