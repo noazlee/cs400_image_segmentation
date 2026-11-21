@@ -88,7 +88,7 @@ def plot_weighted_iou(segformer_data, unet_data):
         flierprops={
             "marker": "o",
             "markersize": 3,
-            "alpha": 0.5
+            "alpha": 1
         },
         showmeans=True,
         meanprops={
@@ -110,7 +110,7 @@ def plot_weighted_iou(segformer_data, unet_data):
         flierprops={
             "marker": "o",
             "markersize": 3,
-            "alpha": 0.5
+            "alpha": 1
         },
         showmeans=True,
         meanprops={
@@ -123,11 +123,11 @@ def plot_weighted_iou(segformer_data, unet_data):
 
     for box in segformer_boxes["boxes"]:
         box.set_facecolor("C0")
-        box.set_alpha(0.65)
+        box.set_alpha(1)
 
     for box in unet_boxes["boxes"]:
         box.set_facecolor("C1")
-        box.set_alpha(0.65)
+        box.set_alpha(1)
 
     # Axes
     ax.set_xticks(x)
@@ -138,16 +138,16 @@ def plot_weighted_iou(segformer_data, unet_data):
 
     ax.set_ylim(-0.02, 1.02)
 
-    ax.set_title("SegFormer vs. U-Net Performance Across Dustification Levels")
+    ax.set_title("SegFormer vs. U-Net Performance Across Dustification Levels\n(Trained on Dustified Images)")
 
-    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.grid(axis="y", linestyle="--", alpha=1)
 
     ax.set_axisbelow(True)
 
     # Legend
     legend = [
-        Patch(facecolor="C0", alpha=0.65, label="SegFormer"),
-        Patch(facecolor="C1", alpha=0.65, label="U-Net"),
+        Patch(facecolor="C0", alpha=1, label="SegFormer"),
+        Patch(facecolor="C1", alpha=1, label="U-Net"),
         Line2D([0], [0], marker="D", color="none",
            markerfacecolor="darkred", markeredgecolor="black",
            markersize=6, label="Mean")

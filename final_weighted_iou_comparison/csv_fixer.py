@@ -2,8 +2,8 @@ import pandas as pd
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SEGFORMER_CSV = ROOT / "Segformer" / "results" / "model6_crowd" / "per_image_scores_long.csv"
-UNET_CSV = ROOT / "U-Net" / "results-2" / "dust_metrics.csv"
+SEGFORMER_CSV = ROOT / "Segformer" / "results" / "model7(dust)_crowd" / "per_image_scores_long.csv"
+UNET_CSV = ROOT / "U-Net" / "results-3" / "dust_metrics.csv"
 csv_files = [SEGFORMER_CSV, UNET_CSV]
 
 levels = {
@@ -54,5 +54,5 @@ for file, df in dataframes.items():
     df = df[df["image"].isin(valid_images)]
     df = df.sort_values("image").reset_index(drop=True)
 
-    output = ROOT / "final_weighted_iou_comparison" / f"{file.stem}_collapsed.csv"
+    output = ROOT / "final_weighted_iou_comparison" / f"{file.stem}_collapsed(dust).csv"
     df.to_csv(output, index=False)
